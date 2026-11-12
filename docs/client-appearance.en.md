@@ -14,9 +14,13 @@ The defaults require no legacy environment variables: macOS title-bar controls, 
 
 ![macOS, Windows, and Blended title-bar styles](titlebar-styles.png)
 
-Windows reuses the upstream caption, menus, and content layout instead of only moving window buttons to the right. A real dark-theme capture:
+Windows reuses the upstream caption, menus, and content layout instead of only moving window buttons to the right. A caption-colour backing under the inner content corner prevents the desktop showing through as a bright notch, while retaining sidebar glass and transparent exterior corners. A real dark-theme capture:
 
 ![Upstream-style Windows caption in dark theme](windows-upstream-style.png)
+
+Real before/after captures use the same backing to show the transparent notch:
+
+![Windows inner corner before and after the fix](windows-corner-comparison.png)
 
 “Restore defaults” fills the form without writing until you save. “Save” affects the next launch only and leaves the current window and Host tasks running. The page distinguishes current-run and next-launch values. A failed save keeps the form for correction or retry and is not reported as saved.
 

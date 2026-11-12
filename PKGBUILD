@@ -17,7 +17,7 @@
 
 pkgname=dsh-desktop-linux
 pkgver=0.2.2rc2
-pkgrel=4
+pkgrel=5
 _tag='dsh-v0.2.2-rc.2'
 _commit='ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c'
 # GitHub 源码包的顶层目录名 = <repo>-<tag>，tag 自带的 "v" 不剥（实测 dsh-v0.2.1-alpha.2）
@@ -106,6 +106,7 @@ source=("$pkgname-$pkgver.tar.gz::https://github.com/deepseek-ai/deepseek-harnes
         '0020-desktop-client-appearance.patch'
         '0021-desktop-titlebar-styles.patch'
         '0022-desktop-windows-and-blended.patch'
+        '0023-desktop-windows-corner-backing.patch'
         # 补丁系列是文本 diff，装不下托盘 PNG —— GNU patch（makepkg 与 PKGBUILD 都用它）
         # 不支持 git 的二进制补丁。所以这张图作为普通本地 source 平铺过来，由 prepare() 放进源码树。
         'tray-linux.png')
@@ -130,6 +131,7 @@ sha256sums=('d376fe64ec4b7c9b5837fb1155ed3a48e7e0e5f5b0aae0b91d9fb836daa8c20e'
             '922ad3c1ae4e61b89133aa2788e3c92d3330238c9d315702b83a78c4acf97353'
             'ffaea6a6e34e60a3aee07a92ae9bd312266b4c85c2ff87fa09dbd3d23f548dea'
             'd1d9e35d7544c096d6374f1847700f99b4d7498c935d4fd74a3ade0459a6164a'
+            '932e2042c444fba41e0332063458f5ce95999e3c218975b3b92367a88691b65a'
             'd1153ab7bb1c61ca7f6568b4525f6c3f3c7bf9a9e29af1697f3c02da7dee5322')
 
 prepare() {

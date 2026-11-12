@@ -1,0 +1,75 @@
+diff --git a/apps/desktop/src/glass-document.ts b/apps/desktop/src/glass-document.ts
+index 1b4a4f29..71d01ee5 100644
+--- a/apps/desktop/src/glass-document.ts
++++ b/apps/desktop/src/glass-document.ts
+@@ -46,6 +46,15 @@ html[data-dsh-glass] body { isolation: isolate; }
+    sidebar-browser frames. */
+ html[data-dsh-glass] div:has(> [class*="sidebarCol"]) { background: transparent; }
+ 
++/* The Windows content radius exposes its frame at the caption/column junction. Back only the
++   content-side strip with the caption fill, leaving the sidebar and exterior corners transparent. */
++html[data-dsh-glass][data-windows-titlebar] div:has(> [class*="sidebarCol"]) {
++  background-image: linear-gradient(var(--dsw-specific-sidebar-fill), var(--dsw-specific-sidebar-fill));
++  background-repeat: no-repeat;
++  background-position: right var(--dsh-windows-titlebar-height);
++  background-size: calc(100% - var(--dsh-windows-sidebar-width)) var(--dsh-windows-content-radius);
++}
++
+ /* Chromium cannot blur a menu over a transparent window: without an opaque backing the menu's
+    translucent fill shows the sidebar text straight through it. macOS ships this backing for the
+    same reason (MenuSurface, darwin only), so glass mode shows it too. */
+diff --git a/apps/desktop/tests/glass-document.spec.ts b/apps/desktop/tests/glass-document.spec.ts
+index 4cb6fd79..330ca869 100644
+--- a/apps/desktop/tests/glass-document.spec.ts
++++ b/apps/desktop/tests/glass-document.spec.ts
+@@ -27,6 +27,14 @@ describe('glassDocument', () => {
+     expect(markup).not.toContain('[class*="_frame"]')
+   })
+ 
++  it('backs only the Windows content-side corner using the owning frame dimensions', () => {
++    const markup = glassDocument(80)
++    expect(markup).toContain('html[data-dsh-glass][data-windows-titlebar] div:has(> [class*="sidebarCol"]) {')
++    expect(markup).toContain('background-position: right var(--dsh-windows-titlebar-height);')
++    expect(markup).toContain('background-size: calc(100% - var(--dsh-windows-sidebar-width)) var(--dsh-windows-content-radius);')
++    expect(markup).not.toContain('border-radius:')
++  })
++
+   it('uses the macOS fills by default and one tint for both themes', () => {
+     const macOS = glassDocument(null)
+     expect(macOS).toContain('#7a9bf0) 40%, transparent)')
+diff --git a/apps/desktop/tests/glass-sidebar.client.spec.ts b/apps/desktop/tests/glass-sidebar.client.spec.ts
+index abaf28e5..fb490ff2 100644
+--- a/apps/desktop/tests/glass-sidebar.client.spec.ts
++++ b/apps/desktop/tests/glass-sidebar.client.spec.ts
+@@ -4,6 +4,7 @@ import { glassDocument } from '../src/glass-document.ts'
+ 
+ afterEach(() => {
+   document.documentElement.removeAttribute('data-dsh-glass')
++  document.documentElement.removeAttribute('data-windows-titlebar')
+   document.body.removeAttribute('data-ds-dark-theme')
+   document.head.innerHTML = ''
+   document.body.innerHTML = ''
+@@ -37,3 +38,23 @@ for (const dark of [false, true]) it(`removes only the opaque sidebar scroll fad
+   document.documentElement.removeAttribute('data-dsh-glass')
+   expect(getComputedStyle(sidebarFade).display).toBe('block')
+ })
++
++it.each([
++  [false, false], [false, true], [true, false], [true, true],
++])('backs the content corner only for glass=%s with the Windows caption=%s', (glass, caption) => {
++  document.documentElement.toggleAttribute('data-dsh-glass', glass)
++  document.documentElement.toggleAttribute('data-windows-titlebar', caption)
++  document.body.innerHTML = `<div id="frame"><aside class="v3_sidebarCol"></aside><main class="v4_centerCol"></main></div>
++    <div id="other" class="v5_frame"></div>`
++  const style = document.createElement('style')
++  style.textContent = glassDocument(80).split('<style>')[1]!.split('</style>')[0]!
++  document.head.append(style)
++  const frame = getComputedStyle(document.getElementById('frame')!)
++  if (glass && caption) {
++    expect(frame.backgroundImage).toBe('linear-gradient(var(--dsw-specific-sidebar-fill), var(--dsw-specific-sidebar-fill))')
++    expect(frame.backgroundRepeat).toBe('no-repeat')
++    expect(frame.backgroundPosition).toBe('right var(--dsh-windows-titlebar-height)')
++    expect(frame.backgroundSize).toBe('calc(100% - var(--dsh-windows-sidebar-width)) var(--dsh-windows-content-radius)')
++  } else expect(frame.backgroundImage).not.toContain('linear-gradient')
++  expect(getComputedStyle(document.getElementById('other')!).backgroundImage).not.toContain('linear-gradient')
++})
