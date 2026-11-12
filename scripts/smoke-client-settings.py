@@ -50,10 +50,9 @@ with tempfile.TemporaryDirectory(prefix='dsh-client-settings-smoke-') as tempora
     env['DSH_HOME']=str(Path(temporary)/'empty-home')
     env['DSH_CLIENT_SMOKE_OUTPUT']=str(output)
     env['WAYLAND_DISPLAY']=args.display
-    env['DSH_DESKTOP_GLASS']='1'
-    env['DSH_DESKTOP_FRAMELESS']='1'
+    for key in ['DSH_DESKTOP_GLASS','DSH_DESKTOP_FRAMELESS','DSH_DESKTOP_GLASS_TINT']:
+        env.pop(key,None)
     env['DSH_DESKTOP_LANGUAGE']='zh-CN'
-    env['DSH_DESKTOP_GLASS_TINT']='50'
     profile=Path(temporary)/'electron-profile'
     profile.mkdir()
     (profile/'locale.json').write_text(json.dumps({'language':'zh-CN'}))

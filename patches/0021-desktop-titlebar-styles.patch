@@ -1,0 +1,1071 @@
+diff --git a/apps/desktop/renderer/client-settings.css b/apps/desktop/renderer/client-settings.css
+index f4ee7c45..e4448af3 100644
+--- a/apps/desktop/renderer/client-settings.css
++++ b/apps/desktop/renderer/client-settings.css
+@@ -48,7 +48,8 @@ h2 + .field { margin-top: 0; }
+ .field-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+ .field-heading label, .field-label { font-weight: 500; }
+ .number-unit { display: flex; align-items: center; gap: 5px; color: var(--secondary); }
+-input, button, summary { font: inherit; }
++input, select, button, summary { font: inherit; }
++select { max-width: 55%; min-height: 32px; padding: 5px 10px; border: 0.5px solid var(--border); border-radius: var(--dsw-radius-md); color: var(--ink); background: var(--surface); }
+ input[type="number"] { width: 72px; min-height: 32px; border: 0.5px solid var(--border); border-radius: var(--dsw-radius-md); padding: 5px 8px; color: var(--ink); background: var(--surface); }
+ input[type="range"] { display: block; width: 100%; margin: 10px 0 6px; accent-color: var(--accent); cursor: pointer; }
+ .range-labels { display: flex; justify-content: space-between; color: var(--secondary); font-size: 11px; }
+@@ -75,14 +76,14 @@ footer { display: flex; align-items: center; justify-content: space-between; gap
+ .save-actions { display: flex; gap: 8px; }
+ button { min-height: 36px; padding: 7px 13px; border: 0; border-radius: var(--dsw-radius-md); font-weight: 500; color: var(--ink); background: var(--control); cursor: pointer; }
+ button.primary { color: var(--accent-ink); background: var(--accent); }
+-button:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+-input[aria-invalid="true"] { outline: 2px solid var(--danger); outline-offset: 1px; }
+-button:disabled, input:disabled { opacity: 0.5; cursor: default; }
+-fieldset:disabled .toggle-row, fieldset:disabled input { cursor: default; }
++button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
++input[aria-invalid="true"], select[aria-invalid="true"] { outline: 2px solid var(--danger); outline-offset: 1px; }
++button:disabled, input:disabled, select:disabled { opacity: 0.5; cursor: default; }
++fieldset:disabled .toggle-row, fieldset:disabled input, fieldset:disabled select { cursor: default; }
+ button[aria-busy="true"] { opacity: 1; }
+ [hidden] { display: none !important; }
+ @supports (corner-shape: superellipse(1.5)) {
+-  .group, input[type="number"], button, #error { corner-shape: superellipse(1.5); }
++  .group, input[type="number"], select, button, #error { corner-shape: superellipse(1.5); }
+ }
+ @media (hover: hover) {
+   button:not(.primary):hover:not(:disabled) { background: var(--hover); }
+diff --git a/apps/desktop/renderer/client-settings.html b/apps/desktop/renderer/client-settings.html
+index 7197154d..ec2461c1 100644
+--- a/apps/desktop/renderer/client-settings.html
++++ b/apps/desktop/renderer/client-settings.html
+@@ -19,6 +19,16 @@
+         <fieldset id="preferences">
+           <section class="group" aria-labelledby="window-heading">
+             <h2 id="window-heading" data-message="windowGroup"></h2>
++            <div class="field">
++              <div class="field-heading">
++                <label for="titlebar-style" data-message="titlebarStyle"></label>
++                <select id="titlebar-style" required aria-describedby="titlebar-help">
++                  <option value="macos" data-message="titlebarMacos"></option>
++                  <option value="windows" data-message="titlebarWindows"></option>
++                </select>
++              </div>
++              <p id="titlebar-help" class="help" data-message="titlebarHelp"></p>
++            </div>
+             <div class="field">
+               <div class="field-heading">
+                 <label for="corner-radius" data-message="cornerRadius"></label>
+diff --git a/apps/desktop/renderer/client-settings.js b/apps/desktop/renderer/client-settings.js
+index da512d65..a02a1fff 100644
+--- a/apps/desktop/renderer/client-settings.js
++++ b/apps/desktop/renderer/client-settings.js
+@@ -18,6 +18,7 @@
+   const glass = document.getElementById('sidebar-glass')
+   const frameless = document.getElementById('frameless')
+   const blur = document.getElementById('wayland-blur')
++  const titlebar = document.getElementById('titlebar-style')
+   const restore = document.getElementById('restore')
+   const save = document.getElementById('save')
+   const saveRestart = document.getElementById('save-restart')
+@@ -81,19 +82,24 @@
+   function validate() {
+     const validRadius = numberValid(radius, 32, messages.radiusInvalid)
+     const validTransparency = numberValid(transparency, 100, messages.transparencyInvalid)
+-    return validRadius && validTransparency
++    const validTitlebar = titlebar.value === 'macos' || titlebar.value === 'windows'
++    titlebar.setCustomValidity(validTitlebar ? '' : messages.titlebarInvalid)
++    titlebar.setAttribute('aria-invalid', String(!validTitlebar))
++    return validRadius && validTransparency && validTitlebar
+   }
+ 
+   function formValue() {
+     return {
+       frameless: frameless.checked, cornerRadius: radius.valueAsNumber, systemShadow: shadow.checked,
+       sidebarGlass: glass.checked, sidebarOpacity: 100 - transparency.valueAsNumber, waylandBlur: blur.checked,
++      titlebarStyle: titlebar.value,
+     }
+   }
+ 
+   function equal(left, right) {
+     return left.frameless === right.frameless && left.cornerRadius === right.cornerRadius && left.systemShadow === right.systemShadow
+       && left.sidebarGlass === right.sidebarGlass && left.sidebarOpacity === right.sidebarOpacity && left.waylandBlur === right.waylandBlur
++      && left.titlebarStyle === right.titlebarStyle
+   }
+ 
+   function setForm(value) {
+@@ -105,16 +111,18 @@
+     glass.checked = value.sidebarGlass
+     frameless.checked = value.frameless
+     blur.checked = value.waylandBlur
++    titlebar.value = value.titlebarStyle
+     validate()
+   }
+ 
+   function summary(value) {
+     const replacements = {
++      style: value.titlebarStyle === 'macos' ? messages.titlebarMacos : messages.titlebarWindows,
+       radius: value.cornerRadius, transparency: 100 - value.sidebarOpacity,
+       shadow: value.systemShadow ? messages.on : messages.off, glass: value.sidebarGlass ? messages.on : messages.off,
+       frameless: value.frameless ? messages.on : messages.off, blur: value.waylandBlur ? messages.on : messages.off,
+     }
+-    return messages.snapshotTemplate.replace(/\{(radius|transparency|shadow|glass|frameless|blur)\}/gu, (_match, key) => String(replacements[key]))
++    return messages.snapshotTemplate.replace(/\{(style|radius|transparency|shadow|glass|frameless|blur)\}/gu, (_match, key) => String(replacements[key]))
+   }
+ 
+   function showSummaries() {
+@@ -197,7 +205,7 @@
+ 
+   bindPair(radius, radiusRange)
+   bindPair(transparency, transparencyRange)
+-  for (const checkbox of [shadow, glass, frameless, blur]) checkbox.addEventListener('change', edited)
++  for (const control of [shadow, glass, frameless, blur, titlebar]) control.addEventListener('change', edited)
+   form.addEventListener('submit', event => { event.preventDefault(); void submit(false) })
+   saveRestart.addEventListener('click', () => { void submit(true) })
+   retry.addEventListener('click', () => { void load() })
+diff --git a/apps/desktop/renderer/client-settings/messages.json b/apps/desktop/renderer/client-settings/messages.json
+index e27cfee1..214acdd1 100644
+--- a/apps/desktop/renderer/client-settings/messages.json
++++ b/apps/desktop/renderer/client-settings/messages.json
+@@ -3,6 +3,11 @@
+     "title": "Client appearance",
+     "subtitle": "Window and sidebar preferences for this desktop app",
+     "windowGroup": "Window",
++    "titlebarStyle": "Title bar style",
++    "titlebarHelp": "macOS uses left-side traffic-light controls; Windows uses right-side window controls. Applies to the frameless main window after restart.",
++    "titlebarMacos": "macOS",
++    "titlebarWindows": "Windows",
++    "titlebarInvalid": "Choose macOS or Windows title bar controls.",
+     "cornerRadius": "Corner radius",
+     "cornerHelp": "0–32 px. The compositor decides whether native corners can be rounded.",
+     "cornerValue": "Corner radius in pixels",
+@@ -26,7 +31,7 @@
+     "restartHelp": "Changes apply only after restarting the app. Saving does not change the current run.",
+     "runningLabel": "Current run",
+     "savedLabel": "Next launch",
+-    "snapshotTemplate": "{radius} px corners · Shadow {shadow} · Glass {glass} · {transparency}% transparent · Frameless {frameless} · Blur {blur}",
++    "snapshotTemplate": "{style} controls · {radius} px corners · Shadow {shadow} · Glass {glass} · {transparency}% transparent · Frameless {frameless} · Blur {blur}",
+     "on": "on",
+     "off": "off",
+     "restore": "Restore defaults",
+@@ -65,6 +70,11 @@
+     "title": "客户端外观",
+     "subtitle": "独立于主机设置的窗口与侧栏偏好",
+     "windowGroup": "窗口",
++    "titlebarStyle": "标题栏样式",
++    "titlebarHelp": "macOS 使用左侧红绿灯控件，Windows 使用右侧窗口控件；重启后应用于无边框主窗口",
++    "titlebarMacos": "macOS",
++    "titlebarWindows": "Windows",
++    "titlebarInvalid": "请选择 macOS 或 Windows 标题栏控件",
+     "cornerRadius": "圆角半径",
+     "cornerHelp": "0–32 px。原生窗口能否显示圆角取决于合成器",
+     "cornerValue": "圆角半径（像素）",
+@@ -88,7 +98,7 @@
+     "restartHelp": "保存只影响下次启动，不改变当前运行中的外观",
+     "runningLabel": "当前运行",
+     "savedLabel": "下次启动",
+-    "snapshotTemplate": "圆角 {radius} px · 阴影{shadow} · 玻璃{glass} · 透明度 {transparency}% · 无边框{frameless} · 模糊{blur}",
++    "snapshotTemplate": "{style} 控件 · 圆角 {radius} px · 阴影{shadow} · 玻璃{glass} · 透明度 {transparency}% · 无边框{frameless} · 模糊{blur}",
+     "on": "开",
+     "off": "关",
+     "restore": "恢复默认",
+diff --git a/apps/desktop/src/client-appearance.ts b/apps/desktop/src/client-appearance.ts
+index 739299c9..45959b3e 100644
+--- a/apps/desktop/src/client-appearance.ts
++++ b/apps/desktop/src/client-appearance.ts
+@@ -11,6 +11,7 @@ export interface ClientAppearance {
+   readonly sidebarGlass: boolean
+   readonly sidebarOpacity: number
+   readonly waylandBlur: boolean
++  readonly titlebarStyle: 'macos' | 'windows'
+ }
+ 
+ /** Initial macOS-like preferences before a saved document or legacy environment override exists. */
+@@ -19,8 +20,9 @@ export const DEFAULT_CLIENT_APPEARANCE: ClientAppearance = Object.freeze({
+   cornerRadius: 12,
+   systemShadow: true,
+   sidebarGlass: true,
+-  sidebarOpacity: 50,
++  sidebarOpacity: 80,
+   waylandBlur: true,
++  titlebarStyle: 'macos',
+ })
+ 
+ /** Failure categories never contain file contents or unrecognized input values. */
+@@ -40,7 +42,8 @@ export class ClientAppearanceError extends Error {
+   }
+ }
+ 
+-const appearanceKeys = ['frameless', 'cornerRadius', 'systemShadow', 'sidebarGlass', 'sidebarOpacity', 'waylandBlur'] as const
++const versionOneKeys = ['frameless', 'cornerRadius', 'systemShadow', 'sidebarGlass', 'sidebarOpacity', 'waylandBlur'] as const
++const appearanceKeys = [...versionOneKeys, 'titlebarStyle'] as const
+ 
+ function record(value: unknown): value is Record<string, unknown> {
+   return value !== null && typeof value === 'object' && !Array.isArray(value)
+@@ -58,9 +61,14 @@ function integer(value: unknown, field: keyof ClientAppearance, maximum: number)
+   return value
+ }
+ 
++function titlebarStyle(value: unknown): ClientAppearance['titlebarStyle'] {
++  if (value !== 'macos' && value !== 'windows') throw new ClientAppearanceError({ kind: 'fields', field: 'titlebarStyle' })
++  return value
++}
++
+ /**
+  * Validate every appearance field without coercion; missing and unknown fields are rejected.
+- * @param value - Untrusted IPC payload containing exactly the six appearance fields, without schemaVersion.
++ * @param value - Untrusted IPC payload containing exactly the seven appearance fields, without schemaVersion.
+  * @returns A detached, immutable preference value; throws ClientAppearanceError on invalid input.
+  */
+ export function parseClientAppearance(value: unknown): ClientAppearance {
+@@ -75,6 +83,7 @@ export function parseClientAppearance(value: unknown): ClientAppearance {
+     sidebarGlass: boolean(value.sidebarGlass, 'sidebarGlass'),
+     sidebarOpacity: integer(value.sidebarOpacity, 'sidebarOpacity', 100),
+     waylandBlur: boolean(value.waylandBlur, 'waylandBlur'),
++    titlebarStyle: titlebarStyle(value.titlebarStyle),
+   })
+ }
+ 
+@@ -82,10 +91,14 @@ function appearancePath(userData: string): string { return join(userData, 'deskt
+ 
+ function parseDocument(value: unknown): ClientAppearance {
+   if (!record(value)) throw new ClientAppearanceError({ kind: 'document' })
+-  if (value.schemaVersion !== 1) throw new ClientAppearanceError({ kind: 'version' })
+-  if (Reflect.ownKeys(value).length !== appearanceKeys.length + 1) throw new ClientAppearanceError({ kind: 'document' })
+-  const { schemaVersion: _version, ...appearance } = value
+-  return parseClientAppearance(appearance)
++  if (value.schemaVersion !== 1 && value.schemaVersion !== 2) throw new ClientAppearanceError({ kind: 'version' })
++  const keys = value.schemaVersion === 1 ? versionOneKeys : appearanceKeys
++  if (Reflect.ownKeys(value).length !== keys.length + 1 || !keys.every(key => Object.hasOwn(value, key))) {
++    throw new ClientAppearanceError({ kind: 'document' })
++  }
++  const { schemaVersion, ...appearance } = value
++  // Version 1 has no style choice; migration preserves every explicit legacy preference, including opacity.
++  return parseClientAppearance(schemaVersion === 1 ? { ...appearance, titlebarStyle: 'macos' } : appearance)
+ }
+ 
+ async function readSavedAppearance(userData: string): Promise<ClientAppearance | undefined> {
+@@ -115,7 +128,8 @@ function initialAppearance(env: NodeJS.ProcessEnv): ClientAppearance {
+ }
+ 
+ /**
+- * Read a complete startup snapshot. An invalid saved document fails rather than falling back to environment values.
++ * Read a complete startup snapshot, migrating exact version-1 documents to macOS controls without rewriting or changing opacity.
++ * Invalid saved documents fail rather than falling back to environment values.
+  * @param userData - Electron app.getPath('userData'); only desktop/appearance.json is read.
+  * @param env - Legacy initial values when no file exists; omission reads process.env without modifying it.
+  * @returns Immutable saved preferences, or macOS-like defaults with legacy initial values on ENOENT.
+@@ -125,17 +139,17 @@ export async function readClientAppearance(userData: string, env: NodeJS.Process
+ }
+ 
+ /**
+- * Save the complete version-1 document. Failed preparation/write/rename preserves the previous file.
++ * Save the complete version-2 document. Failed preparation/write/rename preserves the previous file.
+  * Existing malformed or unsupported documents are not overwritten. Concurrent complete saves are last-writer-wins.
+  * @param userData - Electron userData; unrelated settings and credentials are never read or written.
+- * @param value - Untrusted six-field appearance value, validated before filesystem work.
++ * @param value - Untrusted seven-field appearance value, validated before filesystem work.
+  * @returns The immutable saved value after atomic mode-0600 replacement; does not mutate a startup snapshot or env.
+  */
+ export async function saveClientAppearance(userData: string, value: unknown): Promise<ClientAppearance> {
+   const appearance = parseClientAppearance(value)
+   await readSavedAppearance(userData)
+   try {
+-    await writeFileAtomic(appearancePath(userData), `${JSON.stringify({ schemaVersion: 1, ...appearance }, null, 2)}\n`, {
++    await writeFileAtomic(appearancePath(userData), `${JSON.stringify({ schemaVersion: 2, ...appearance }, null, 2)}\n`, {
+       mode: 0o600, dirMode: 0o700,
+     })
+   } catch (error) {
+diff --git a/apps/desktop/src/client-settings-ipc.ts b/apps/desktop/src/client-settings-ipc.ts
+index 72afecb7..aff812b5 100644
+--- a/apps/desktop/src/client-settings-ipc.ts
++++ b/apps/desktop/src/client-settings-ipc.ts
+@@ -10,7 +10,8 @@ export const CLIENT_SETTINGS_IPC = Object.freeze({
+ 
+ /** Renderer-owned message keys, also used by the native restart confirmation. */
+ export const CLIENT_SETTINGS_MESSAGE_KEYS = [
+-  'title', 'subtitle', 'windowGroup', 'cornerRadius', 'cornerHelp', 'cornerValue', 'shadow', 'shadowHelp',
++  'title', 'subtitle', 'windowGroup', 'titlebarStyle', 'titlebarHelp', 'titlebarMacos', 'titlebarWindows', 'titlebarInvalid',
++  'cornerRadius', 'cornerHelp', 'cornerValue', 'shadow', 'shadowHelp',
+   'sidebarGroup', 'glass', 'glassHelp', 'transparency', 'transparencyHelp', 'transparencyValue', 'opaque', 'transparent',
+   'advanced', 'frameless', 'framelessHelp', 'blur', 'blurHelp', 'environmentHelp', 'privacyHelp', 'restartHelp',
+   'runningLabel', 'savedLabel', 'snapshotTemplate', 'on', 'off', 'restore', 'save', 'saveRestart', 'saving', 'restarting',
+@@ -46,7 +47,7 @@ export interface ClientSettingsApi {
+   /** @returns Current and saved values; no runtime appearance changes occur. */
+   get(): Promise<ClientSettingsReply<ClientSettingsSnapshot>>
+   /**
+-   * @param value - Complete six-field preferences, strictly validated in the main process.
++   * @param value - Complete seven-field preferences, strictly validated in the main process.
+    * @returns Saved state or a structured failure; the caller retains its form on failure.
+    */
+   save(value: unknown): Promise<ClientSettingsReply<ClientSettingsSnapshot>>
+diff --git a/apps/desktop/src/client-settings.ts b/apps/desktop/src/client-settings.ts
+index 0ca32315..79c3d22a 100644
+--- a/apps/desktop/src/client-settings.ts
++++ b/apps/desktop/src/client-settings.ts
+@@ -35,6 +35,7 @@ export class ClientSettingsWindowError extends Error {
+ function differs(left: ClientAppearance, right: ClientAppearance): boolean {
+   return left.frameless !== right.frameless || left.cornerRadius !== right.cornerRadius || left.systemShadow !== right.systemShadow
+     || left.sidebarGlass !== right.sidebarGlass || left.sidebarOpacity !== right.sidebarOpacity || left.waylandBlur !== right.waylandBlur
++    || left.titlebarStyle !== right.titlebarStyle
+ }
+ 
+ /** One reusable native window per manager; disposal never quits or destroys another application window. */
+diff --git a/apps/desktop/src/glass-document.ts b/apps/desktop/src/glass-document.ts
+index e1ecf93e..1b4a4f29 100644
+--- a/apps/desktop/src/glass-document.ts
++++ b/apps/desktop/src/glass-document.ts
+@@ -88,7 +88,7 @@ html[data-dsh-glass] body[data-ds-dark-theme] [class$="newSession"]:hover { back
+ /* The list-bottom fade paints a gradient of the opaque sidebar fill. macOS hides it for exactly
+    this reason (over window vibrancy the gradient is a solid smear, not a fade), so the
+    translucent column hides it too; without this it reads as a light band above the footer. */
+-html[data-dsh-glass] [class*="sidebarCol"] [class$="_fade"] { display: none; }
++html[data-dsh-glass] [class*="sidebarCol"] [data-sidebar-scrollport] + span[aria-hidden="true"] { display: none; }
+ 
+ /* Content, right bar and bottom row remain opaque. */
+ html[data-dsh-glass] [class*="centerCol"],
+diff --git a/apps/desktop/src/linux-chrome-ipc.ts b/apps/desktop/src/linux-chrome-ipc.ts
+index c4bcb58f..968b1fc7 100644
+--- a/apps/desktop/src/linux-chrome-ipc.ts
++++ b/apps/desktop/src/linux-chrome-ipc.ts
+@@ -1,5 +1,7 @@
+ /** Private channels shared by isolated Linux chrome and its owning main frame. */
+ export const LINUX_CHROME_ARGUMENT = '--dsh-kde-glass-chrome'
++/** Primary-frame caption style argument; absent or invalid values select macOS traffic lights. */
++export const LINUX_TITLEBAR_STYLE_ARGUMENT = '--dsh-desktop-titlebar-style='
+ /** Stable primary-only native title; welcome and settings windows are never selected by the relay. */
+ export const LINUX_PRIMARY_WINDOW_TITLE = 'DeepSeek Harness — Workspace'
+ /** Native window actions and state; never exposed as an application command bridge. */
+diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
+index c8f4aecd..43eca37e 100644
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -77,7 +77,7 @@ import { DesktopQuitConfirmation } from './quit-confirmation.ts'
+ import { DesktopTray } from './tray.ts'
+ import { readClientAppearance, type ClientAppearance } from './client-appearance.ts'
+ import { ClientSettingsWindow } from './client-settings.ts'
+-import { LINUX_CHROME_ARGUMENT, LINUX_PRIMARY_WINDOW_TITLE } from './linux-chrome-ipc.ts'
++import { LINUX_CHROME_ARGUMENT, LINUX_PRIMARY_WINDOW_TITLE, LINUX_TITLEBAR_STYLE_ARGUMENT } from './linux-chrome-ipc.ts'
+ import { installLinuxWindowChrome, installLinuxCornerRadius } from './linux-window-chrome.ts'
+ import { launchWaylandProxy, prepareAppearanceRestart, waylandProxyPython } from './wayland-bootstrap.ts'
+ 
+@@ -344,7 +344,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
+       additionalArguments: [
+         ...(glass ? [GLASS_ARGUMENT] : []),
+         ...(primary && frameless ? [WAYLAND_CSD_ARGUMENT] : []),
+-        ...(linuxCustom ? [LINUX_CHROME_ARGUMENT, `--dsh-desktop-corner-radius=${radius}`] : []),
++        ...(linuxCustom ? [LINUX_CHROME_ARGUMENT, `--dsh-desktop-corner-radius=${radius}`, `${LINUX_TITLEBAR_STYLE_ARGUMENT}${clientAppearance?.titlebarStyle ?? 'macos'}`] : []),
+       ],
+     },
+   })
+diff --git a/apps/desktop/src/preload-linux-chrome.ts b/apps/desktop/src/preload-linux-chrome.ts
+index 3bf1f9f7..e14ccfd4 100644
+--- a/apps/desktop/src/preload-linux-chrome.ts
++++ b/apps/desktop/src/preload-linux-chrome.ts
+@@ -1,16 +1,22 @@
+-/** Sandboxed traffic lights; no command or Node bridge is exported to the application page. */
++/** Sandboxed Linux caption styles; no command or Node bridge reaches the application page. */
+ import { ipcRenderer } from 'electron'
+-import { LINUX_CHROME_ARGUMENT, LINUX_CHROME_IPC, type LinuxChromeState } from './linux-chrome-ipc.ts'
++import { LINUX_CHROME_ARGUMENT, LINUX_CHROME_IPC, LINUX_TITLEBAR_STYLE_ARGUMENT, type LinuxChromeState } from './linux-chrome-ipc.ts'
+ 
+-/** Mounts only in the primary, explicitly marked application frame. */
++/** Mounts only in the primary, explicitly marked application frame; disposal follows pagehide. */
+ export function installLinuxChrome(): void {
+   if (!process.isMainFrame || !process.argv.includes(LINUX_CHROME_ARGUMENT)
+     || location.protocol !== 'dsh-app:' || location.hostname !== 'app') return
++  const captionStyle = process.argv.find(argument => argument.startsWith(LINUX_TITLEBAR_STYLE_ARGUMENT))?.slice(LINUX_TITLEBAR_STYLE_ARGUMENT.length) === 'windows' ? 'windows' : 'macos'
+   const radiusArgument = process.argv.find(argument => argument.startsWith('--dsh-desktop-corner-radius='))?.split('=')[1]
+   const radius = radiusArgument !== undefined && /^\d{1,2}$/u.test(radiusArgument) && Number(radiusArgument) <= 32 ? Number(radiusArgument) : 0
+   let state: LinuxChromeState = { maximized: false, fullscreen: false, focused: true }
+   let host: HTMLElement | undefined
+   let maximize: HTMLButtonElement | undefined
++  let glyph: HTMLElement | undefined
++  let style: HTMLStyleElement | undefined
++  let observer: MutationObserver | undefined
++  let resize: ResizeObserver | undefined
++  const captionRows = new Set<HTMLElement>()
+   const zh = (): boolean => document.documentElement.lang.toLowerCase().startsWith('zh') || navigator.language.startsWith('zh')
+   const label = (action: string): string => {
+     const labels = zh()
+@@ -18,39 +24,66 @@ export function installLinuxChrome(): void {
+       : { close: 'Close window (keep in tray)', minimize: 'Minimize window', maximize: 'Maximize window', restore: 'Restore window' }
+     return labels[action as keyof typeof labels] ?? action
+   }
++  // Only known top-row owners touching the window's trailing edge need space.
++  // Lower dock panes and arbitrary drag surfaces retain their existing layout.
++  const measureCaptionRows = (): void => {
++    if (captionStyle !== 'windows') return
++    for (const row of captionRows) {
++      const bounds = row.getBoundingClientRect()
++      row.toggleAttribute('data-dsh-caption-clearance', !state.fullscreen
++        && bounds.width > 0 && bounds.top < 48 && bounds.bottom > 0 && bounds.right >= innerWidth - 8)
++    }
++  }
++  const discoverCaptionRows = (): void => {
++    for (const row of captionRows) {
++      if (!row.isConnected) { resize?.unobserve(row); captionRows.delete(row) }
++    }
++    for (const row of document.querySelectorAll<HTMLElement>('header[data-window-drag]:has(> [data-conversation-header-leading]), [data-dockkit-strip]')) {
++      if (!captionRows.has(row)) { captionRows.add(row); resize?.observe(row) }
++    }
++    measureCaptionRows()
++  }
+   const update = (): void => {
+     document.documentElement.toggleAttribute('data-kde-glass-maximized', state.maximized)
+     document.documentElement.toggleAttribute('data-kde-glass-fullscreen', state.fullscreen)
+     if (host !== undefined) {
+       host.hidden = state.fullscreen
+       host.toggleAttribute('data-inactive', !state.focused)
++      host.toggleAttribute('data-maximized', state.maximized)
+     }
+     if (maximize !== undefined) {
+       const text = label(state.maximized ? 'restore' : 'maximize')
+       maximize.title = text; maximize.setAttribute('aria-label', text)
+     }
++    if (glyph !== undefined) glyph.dataset.glyph = state.maximized ? 'restore' : 'maximize'
++    measureCaptionRows()
+   }
+-  ipcRenderer.on(LINUX_CHROME_IPC.state, (_event, value: unknown) => {
++  const receiveState = (_event: Electron.IpcRendererEvent, value: unknown): void => {
+     if (typeof value !== 'object' || value === null || !('maximized' in value) || typeof value.maximized !== 'boolean'
+       || !('fullscreen' in value) || typeof value.fullscreen !== 'boolean' || !('focused' in value) || typeof value.focused !== 'boolean') return
+     state = { maximized: value.maximized, fullscreen: value.fullscreen, focused: value.focused }; update()
+-  })
++  }
++  ipcRenderer.on(LINUX_CHROME_IPC.state, receiveState)
+   const install = (): void => {
+     if (document.querySelector('dsh-kde-window-controls') !== null) return
+     document.documentElement.setAttribute('data-dsh-kde-glass-chrome', '')
+-    const style = document.createElement('style')
++    document.documentElement.setAttribute('data-dsh-titlebar-style', captionStyle)
++    style = document.createElement('style')
+     style.textContent = `
+       html[data-dsh-kde-glass-chrome] { clip-path:inset(0 round ${radius}px); background:transparent !important; min-height:100%; }
+       html[data-dsh-kde-glass-chrome][data-kde-glass-maximized], html[data-dsh-kde-glass-chrome][data-kde-glass-fullscreen] { clip-path:inset(0 round 0px); }
+-      html[data-dsh-kde-glass-chrome] [data-shell-leading] { left:88px !important; }
+-      html[data-dsh-kde-glass-chrome] [data-sidebar-collapsed], html[data-dsh-kde-glass-chrome] [data-sidebar-drawer] { --dsh-frame-leading-clearance:160px !important; }
+-      html[data-dsh-kde-glass-chrome][data-kde-glass-fullscreen] [data-shell-leading] { left:12px !important; }
+-      html[data-dsh-kde-glass-chrome][data-kde-glass-fullscreen] [data-sidebar-collapsed], html[data-dsh-kde-glass-chrome][data-kde-glass-fullscreen] [data-sidebar-drawer] { --dsh-frame-leading-clearance:84px !important; }
++      html[data-dsh-titlebar-style=macos] [data-shell-leading] { left:88px !important; }
++      html[data-dsh-titlebar-style=macos] :is([data-sidebar-collapsed],[data-sidebar-drawer]) { --dsh-frame-leading-clearance:160px !important; }
++      html[data-dsh-titlebar-style=windows] [data-shell-leading], html[data-dsh-kde-glass-chrome][data-kde-glass-fullscreen] [data-shell-leading] { left:12px !important; }
++      html[data-dsh-titlebar-style=windows] :is([data-sidebar-collapsed],[data-sidebar-drawer]), html[data-dsh-kde-glass-chrome][data-kde-glass-fullscreen] :is([data-sidebar-collapsed],[data-sidebar-drawer]) { --dsh-frame-leading-clearance:84px !important; }
++      html[data-dsh-titlebar-style=windows] header[data-dsh-caption-clearance] { padding-right:172px !important; }
++      html[data-dsh-titlebar-style=windows] [data-dockkit-strip][data-dsh-caption-clearance] { padding-right:150px !important; }
+       html[data-dsh-kde-glass-chrome] [data-window-drag] { -webkit-app-region:drag !important; }
+       html[data-dsh-kde-glass-chrome] [data-window-drag] :is(button,a,input,textarea,select,[role=button],[contenteditable=true]), html[data-dsh-kde-glass-chrome] [data-shell-leading] { -webkit-app-region:no-drag !important; }
+     `
+     document.head.append(style)
+     host = document.createElement('dsh-kde-window-controls')
++    host.dataset.style = captionStyle
+     const shadow = host.attachShadow({ mode: 'closed' })
+     const chromeStyle = document.createElement('style')
+     chromeStyle.textContent = `
+@@ -58,25 +91,62 @@ export function installLinuxChrome(): void {
+       :host([hidden]) { display:none; }
+       button { appearance:none; display:grid; place-items:center; flex:none; width:22px; height:24px; padding:0; border:0; background:transparent; cursor:default; -webkit-app-region:no-drag; border-radius:5px; }
+       button::before { content:""; grid-area:1/1; width:12px; height:12px; border-radius:50%; background:var(--dot); box-shadow:inset 0 0 0 .6px #0002; }
+-      button span { grid-area:1/1; display:grid; place-items:center; width:12px; height:12px; font:600 11px/12px sans-serif; color:#0009; opacity:0; pointer-events:none; }
++      button span { grid-area:1/1; display:grid; place-items:center; width:12px; height:12px; font:500 11px/12px sans-serif; color:#0009; opacity:0; pointer-events:none; }
+       :host(:hover) span, button:focus-visible span { opacity:1; }
+       button:focus-visible { outline:2px solid #5b8eff; outline-offset:1px; }
+       button:active::before { filter:brightness(.8); }
+       :host([data-inactive]:not(:hover)) button::before { background:#92959b88; }
++      :host([data-style=windows]) { top:0; left:auto; right:0; width:138px; height:48px; color:var(--dsw-alias-label-primary,#242424); }
++      :host([data-style=windows]) button { width:46px; height:48px; border-radius:0; color:inherit; }
++      :host([data-style=windows]) button::before { display:none; }
++      :host([data-style=windows]) button:hover { background:var(--dsw-alias-interactive-bg-hover,#8882); }
++      :host([data-style=windows]) button:active { background:#8884; }
++      :host([data-style=windows]) button[data-action=close]:hover { background:#c42b1c; color:white; }
++      :host([data-style=windows]) button[data-action=close]:active { background:#a62115; color:white; }
++      :host([data-style=windows][data-inactive]) button:not(:hover) { opacity:.6; }
++      :host([data-style=windows]) button:focus-visible { outline-offset:-3px; }
++      :host([data-style=windows]) span { position:relative; display:block; width:12px; height:12px; opacity:1; color:inherit; font-size:0; }
++      :host([data-style=windows]) [data-glyph=minimize]::before { content:""; position:absolute; left:1px; right:1px; top:7px; height:1px; background:currentColor; }
++      :host([data-style=windows]) [data-glyph=maximize]::before { content:""; position:absolute; inset:1px; border:1px solid currentColor; }
++      :host([data-style=windows]) [data-glyph=restore]::before { content:""; position:absolute; inset:3px 2px 0 0; border:1px solid currentColor; }
++      :host([data-style=windows]) [data-glyph=restore]::after { content:""; position:absolute; inset:0 0 3px 3px; border-top:1px solid currentColor; border-right:1px solid currentColor; }
++      :host([data-style=windows]) [data-glyph=close]::before, :host([data-style=windows]) [data-glyph=close]::after { content:""; position:absolute; left:5.5px; top:-1px; width:1px; height:14px; background:currentColor; transform:rotate(45deg); }
++      :host([data-style=windows]) [data-glyph=close]::after { transform:rotate(-45deg); }
+     `
+     shadow.append(chromeStyle)
+-    for (const [action, dot, symbol] of [['close', '#ff5f57', '×'], ['minimize', '#febc2e', '−'], ['maximize', '#28c840', '+']] as const) {
++    const controls = captionStyle === 'windows'
++      ? [['minimize', '#febc2e', '−'], ['maximize', '#28c840', '+'], ['close', '#ff5f57', '×']] as const
++      : [['close', '#ff5f57', '×'], ['minimize', '#febc2e', '−'], ['maximize', '#28c840', '+']] as const
++    for (const [action, dot, symbol] of controls) {
+       const button = document.createElement('button')
+       button.type = 'button'; button.title = label(action); button.setAttribute('aria-label', button.title)
+       button.dataset.action = action; button.style.setProperty('--dot', dot)
+-      const glyph = document.createElement('span'); glyph.textContent = symbol; glyph.setAttribute('aria-hidden', 'true')
+-      button.append(glyph)
++      const icon = document.createElement('span'); icon.textContent = symbol; icon.dataset.glyph = action; icon.setAttribute('aria-hidden', 'true')
++      button.append(icon)
+       button.addEventListener('click', event => { if (event.isTrusted) ipcRenderer.send(LINUX_CHROME_IPC.action, action) })
+       shadow.append(button)
+-      if (action === 'maximize') maximize = button
++      if (action === 'maximize') { maximize = button; glyph = icon }
+     }
+-    document.body.append(host); update()
++    document.body.append(host)
++    if (captionStyle === 'windows') {
++      resize = new ResizeObserver(measureCaptionRows)
++      observer = new MutationObserver(discoverCaptionRows)
++      observer.observe(document.body, { childList: true, subtree: true })
++      window.addEventListener('resize', measureCaptionRows)
++      discoverCaptionRows()
++    }
++    update()
++  }
++  const dispose = (): void => {
++    document.removeEventListener('DOMContentLoaded', install)
++    ipcRenderer.removeListener(LINUX_CHROME_IPC.state, receiveState)
++    observer?.disconnect(); resize?.disconnect()
++    window.removeEventListener('resize', measureCaptionRows)
++    for (const row of captionRows) row.removeAttribute('data-dsh-caption-clearance')
++    captionRows.clear(); host?.remove(); style?.remove()
++    for (const attribute of ['data-dsh-kde-glass-chrome', 'data-dsh-titlebar-style', 'data-kde-glass-maximized', 'data-kde-glass-fullscreen']) document.documentElement.removeAttribute(attribute)
+   }
++  window.addEventListener('pagehide', dispose, { once: true })
+   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', install, { once: true })
+   else install()
+ }
+diff --git a/apps/desktop/tests/client-appearance.spec.ts b/apps/desktop/tests/client-appearance.spec.ts
+index 4cec4743..24aa2493 100644
+--- a/apps/desktop/tests/client-appearance.spec.ts
++++ b/apps/desktop/tests/client-appearance.spec.ts
+@@ -18,8 +18,18 @@ async function fixture(raw?: string) {
+   return { root, path }
+ }
+ 
++const { titlebarStyle: _legacyStyle, ...versionOneAppearance } = DEFAULT_CLIENT_APPEARANCE
++
+ describe('client appearance validation', () => {
+-  it('returns an immutable detached six-field value and accepts both integer endpoints', () => {
++  it.each(['macos', 'windows'] as const)('accepts the exact %s title bar enum value', titlebarStyle => {
++    expect(parseClientAppearance({ ...DEFAULT_CLIENT_APPEARANCE, titlebarStyle }).titlebarStyle).toBe(titlebarStyle)
++  })
++
++  it.each([undefined, null, false, 0, '', 'MacOS', 'Windows', 'native', {}, []])('rejects invalid title bar style %s', titlebarStyle => {
++    expect(() => parseClientAppearance({ ...DEFAULT_CLIENT_APPEARANCE, titlebarStyle })).toThrow(ClientAppearanceError)
++  })
++
++  it('returns an immutable detached seven-field value and accepts both integer endpoints', () => {
+     const input = { ...DEFAULT_CLIENT_APPEARANCE }
+     const value = parseClientAppearance(input)
+     input.cornerRadius = 4
+@@ -57,10 +67,22 @@ describe('client appearance file', () => {
+     const { root, path } = await fixture()
+     const env = { UNRELATED: 'untouched' }
+     expect(await readClientAppearance(root, env)).toEqual(DEFAULT_CLIENT_APPEARANCE)
++    expect(DEFAULT_CLIENT_APPEARANCE).toMatchObject({ sidebarOpacity: 80, titlebarStyle: 'macos' })
+     expect(env).toEqual({ UNRELATED: 'untouched' })
+     await expect(readFile(path)).rejects.toMatchObject({ code: 'ENOENT' })
+   })
+ 
++  it.each([0, 50, 80, 100])('migrates version 1 without rewriting its bytes or changing saved opacity %s', async sidebarOpacity => {
++    const old = { schemaVersion: 1, ...versionOneAppearance, sidebarOpacity, cornerRadius: 4, systemShadow: false }
++    const raw = JSON.stringify(old)
++    const { root, path } = await fixture(raw)
++    const migrated = await readClientAppearance(root, { DSH_DESKTOP_GLASS_TINT: '25' })
++    expect(migrated).toEqual({ ...versionOneAppearance, sidebarOpacity, cornerRadius: 4, systemShadow: false, titlebarStyle: 'macos' })
++    expect(await readFile(path, 'utf8')).toBe(raw)
++    await saveClientAppearance(root, { ...migrated, titlebarStyle: 'windows' })
++    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ schemaVersion: 2, ...migrated, titlebarStyle: 'windows' })
++  })
++
+   it('uses legacy values only before the first save, with file values winning on subsequent reads', async () => {
+     const { root } = await fixture()
+     const env = { DSH_DESKTOP_FRAMELESS: '0', DSH_DESKTOP_GLASS: '0', DSH_DESKTOP_GLASS_TINT: '75' }
+@@ -74,7 +96,7 @@ describe('client appearance file', () => {
+ 
+   it.each(['', '-1', '101', '1.5', '50%', ' 50', '50\n', '1000', 'NaN'])('does not import invalid legacy tint %j', async tint => {
+     const { root } = await fixture()
+-    expect((await readClientAppearance(root, { DSH_DESKTOP_GLASS_TINT: tint })).sidebarOpacity).toBe(50)
++    expect((await readClientAppearance(root, { DSH_DESKTOP_GLASS_TINT: tint })).sidebarOpacity).toBe(80)
+   })
+ 
+   it.each(['0', '100', '001'])('accepts integer legacy tint %s', async tint => {
+@@ -101,12 +123,12 @@ describe('client appearance file', () => {
+     expect(await saveClientAppearance(root, value)).toEqual(value)
+     expect(await readClientAppearance(root, {})).toEqual(value)
+     expect(read.mock.calls.every(([file]) => file === path)).toBe(true)
+-    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ schemaVersion: 1, ...value })
++    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual({ schemaVersion: 2, ...value })
+     expect(await readFile(settings, 'utf8')).toBe('unrelated-file-must-stay-unread')
+   })
+ 
+   it.skipIf(process.platform === 'win32')('replaces wider file permissions with owner-only mode', async () => {
+-    const { root, path } = await fixture(JSON.stringify({ schemaVersion: 1, ...DEFAULT_CLIENT_APPEARANCE }))
++    const { root, path } = await fixture(JSON.stringify({ schemaVersion: 2, ...DEFAULT_CLIENT_APPEARANCE }))
+     await fs.chmod(path, 0o644)
+     await saveClientAppearance(root, DEFAULT_CLIENT_APPEARANCE)
+     expect((await stat(path)).mode & 0o777).toBe(0o600)
+@@ -116,10 +138,16 @@ describe('client appearance file', () => {
+     ['{"private":"do-not-quote"', 'json'], ['null', 'document'], ['[]', 'document'],
+     [JSON.stringify({ ...DEFAULT_CLIENT_APPEARANCE }), 'version'],
+     [JSON.stringify({ schemaVersion: '1', ...DEFAULT_CLIENT_APPEARANCE }), 'version'],
+-    [JSON.stringify({ schemaVersion: 2, ...DEFAULT_CLIENT_APPEARANCE }), 'version'],
+-    [JSON.stringify({ schemaVersion: 1, ...DEFAULT_CLIENT_APPEARANCE, future: true }), 'document'],
+-    [JSON.stringify({ schemaVersion: 1, ...DEFAULT_CLIENT_APPEARANCE, cornerRadius: 40 }), 'fields'],
+-    [JSON.stringify({ schemaVersion: 1, ...DEFAULT_CLIENT_APPEARANCE, systemShadow: 'false' }), 'fields'],
++    [JSON.stringify({ schemaVersion: 3, ...DEFAULT_CLIENT_APPEARANCE }), 'version'],
++    [JSON.stringify({ schemaVersion: 2, ...DEFAULT_CLIENT_APPEARANCE, future: true }), 'document'],
++    [JSON.stringify({ schemaVersion: 2, ...DEFAULT_CLIENT_APPEARANCE, cornerRadius: 40 }), 'fields'],
++    [JSON.stringify({ schemaVersion: 2, ...DEFAULT_CLIENT_APPEARANCE, systemShadow: 'false' }), 'fields'],
++    [JSON.stringify({ schemaVersion: 2, ...DEFAULT_CLIENT_APPEARANCE, titlebarStyle: 'native' }), 'fields'],
++    [JSON.stringify({ schemaVersion: 1, ...DEFAULT_CLIENT_APPEARANCE }), 'document'],
++    [JSON.stringify({ schemaVersion: 1, ...versionOneAppearance, future: true }), 'document'],
++    [JSON.stringify({ schemaVersion: 1, ...versionOneAppearance, cornerRadius: 40 }), 'fields'],
++    [JSON.stringify({ schemaVersion: 1, ...versionOneAppearance, sidebarOpacity: '50' }), 'fields'],
++    [JSON.stringify({ schemaVersion: 2, ...versionOneAppearance }), 'document'],
+   ])('reports invalid persisted documents and never replaces them: %s', async (raw, kind) => {
+     const { root, path } = await fixture(raw)
+     await expect(readClientAppearance(root, {})).rejects.toMatchObject({ name: 'ClientAppearanceError', problem: { kind } })
+@@ -142,7 +170,7 @@ describe('client appearance file', () => {
+   })
+ 
+   it.each(['mkdir', 'writeFile', 'rename'] as const)('preserves the original bytes and removes temporary files after %s failure', async operation => {
+-    const raw = JSON.stringify({ schemaVersion: 1, ...DEFAULT_CLIENT_APPEARANCE })
++    const raw = JSON.stringify({ schemaVersion: 2, ...DEFAULT_CLIENT_APPEARANCE })
+     const { root, path } = await fixture(raw)
+     vi.spyOn(fs, operation).mockRejectedValueOnce(Object.assign(new Error('injected filesystem failure'), { code: 'EIO' }))
+     await expect(saveClientAppearance(root, { ...DEFAULT_CLIENT_APPEARANCE, cornerRadius: 3 })).rejects.toMatchObject({ problem: { kind: 'write' } })
+diff --git a/apps/desktop/tests/client-settings-renderer.spec.ts b/apps/desktop/tests/client-settings-renderer.spec.ts
+index 26f44385..750293f8 100644
+--- a/apps/desktop/tests/client-settings-renderer.spec.ts
++++ b/apps/desktop/tests/client-settings-renderer.spec.ts
+@@ -1,8 +1,10 @@
+ // @vitest-environment jsdom
+ import { readFileSync } from 'node:fs'
++import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
++import { tmpdir } from 'node:os'
+ import { join } from 'node:path'
+-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+-import { DEFAULT_CLIENT_APPEARANCE } from '../src/client-appearance.ts'
++import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
++import { DEFAULT_CLIENT_APPEARANCE, readClientAppearance, type ClientAppearance } from '../src/client-appearance.ts'
+ import { readClientSettingsMessages } from '../src/client-settings-messages.ts'
+ import type { ClientSettingsApi, ClientSettingsReply, ClientSettingsSnapshot } from '../src/client-settings-ipc.ts'
+ 
+@@ -18,10 +20,10 @@ function text(id: string) { return document.getElementById(id)!.textContent }
+ function edit(id: string, value: string) { input(id).value = value; input(id).dispatchEvent(new Event('input', { bubbles: true })) }
+ function submit() { document.getElementById('appearance-form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })) }
+ 
+-async function boot(locale: string = 'en') {
++async function boot(locale: string = 'en', saved: ClientAppearance = DEFAULT_CLIENT_APPEARANCE) {
+   const copy = await readClientSettingsMessages(rendererPath, locale)
+   reply = { ...copy, kind: 'ok', value: {
+-    current: DEFAULT_CLIENT_APPEARANCE, saved: DEFAULT_CLIENT_APPEARANCE, defaults: DEFAULT_CLIENT_APPEARANCE, restartRequired: false,
++    current: saved, saved, defaults: DEFAULT_CLIENT_APPEARANCE, restartRequired: false,
+   } }
+   api = { get: vi.fn().mockResolvedValue(reply), save: vi.fn().mockResolvedValue(reply),
+     restart: vi.fn().mockResolvedValue({ ...copy, kind: 'ok', value: { restarted: false } }) }
+@@ -71,6 +73,61 @@ it('shows an independent localized failure if the isolated preload cannot connec
+   expect(document.querySelector('footer')!.hidden).toBe(true)
+ })
+ 
++it('selects and saves Windows controls without changing the current run or losing the select element', async () => {
++  await boot()
++  const select = document.getElementById('titlebar-style') as HTMLSelectElement
++  expect(select.value).toBe('macos')
++  expect(input('sidebar-transparency').value).toBe('20')
++  expect([...select.options].map(option => option.textContent)).toEqual(['macOS', 'Windows'])
++  select.value = 'windows'
++  select.dispatchEvent(new Event('change', { bubbles: true }))
++  expect(text('status')).toBe(reply.messages.edited)
++  api.save.mockResolvedValueOnce({ ...reply, kind: 'ok', value: {
++    current: DEFAULT_CLIENT_APPEARANCE, saved: { ...DEFAULT_CLIENT_APPEARANCE, titlebarStyle: 'windows' },
++    defaults: DEFAULT_CLIENT_APPEARANCE, restartRequired: true,
++  } })
++  submit()
++  await vi.waitFor(() => { expect(button('save').disabled).toBe(false) })
++  expect(api.save).toHaveBeenCalledWith({ ...DEFAULT_CLIENT_APPEARANCE, titlebarStyle: 'windows' })
++  expect(document.getElementById('titlebar-style')).toBe(select)
++  expect(text('current-summary')).toContain('macOS')
++  expect(text('saved-summary')).toContain('Windows')
++  expect(api.restart).not.toHaveBeenCalled()
++  button('restore').click()
++  expect(select.value).toBe('macos')
++  expect(input('sidebar-transparency').value).toBe('20')
++  expect(api.save).toHaveBeenCalledOnce()
++})
++
++it('rejects a missing title bar selection before sending a save', async () => {
++  await boot('zh-CN')
++  const select = document.getElementById('titlebar-style') as HTMLSelectElement
++  const validity = vi.spyOn(HTMLFormElement.prototype, 'reportValidity').mockReturnValue(false)
++  select.value = 'native'
++  select.dispatchEvent(new Event('change', { bubbles: true }))
++  submit()
++  expect(validity).toHaveBeenCalledOnce()
++  expect(select.validationMessage).toBe(reply.messages.titlebarInvalid)
++  expect(api.save).not.toHaveBeenCalled()
++})
++
++it('renders a real migrated version-1 file with its saved transparency instead of the new default', async () => {
++  const root = await mkdtemp(join(tmpdir(), 'client-settings-renderer-'))
++  onTestFinished(() => rm(root, { recursive: true, force: true }))
++  await mkdir(join(root, 'desktop'))
++  const { titlebarStyle: _style, ...legacy } = DEFAULT_CLIENT_APPEARANCE
++  const raw = JSON.stringify({ schemaVersion: 1, ...legacy, sidebarOpacity: 50 })
++  const path = join(root, 'desktop', 'appearance.json')
++  await writeFile(path, raw)
++  await boot('en', await readClientAppearance(root, {}))
++  expect((document.getElementById('titlebar-style') as HTMLSelectElement).value).toBe('macos')
++  expect(input('sidebar-transparency').value).toBe('50')
++  expect(await readFile(path, 'utf8')).toBe(raw)
++  button('restore').click()
++  expect(input('sidebar-transparency').value).toBe('20')
++  expect(api.save).not.toHaveBeenCalled()
++})
++
+ it('inverts transparency to stored opacity and does not restart on an ordinary save', async () => {
+   await boot()
+   edit('sidebar-transparency', '80')
+@@ -108,7 +165,7 @@ it('restores defaults locally without writing until save and validates integer b
+   edit('sidebar-transparency', '75')
+   button('restore').click()
+   expect(input('corner-radius').value).toBe('12')
+-  expect(input('sidebar-transparency').value).toBe('50')
++  expect(input('sidebar-transparency').value).toBe('20')
+   expect(api.save).not.toHaveBeenCalled()
+   const validity = vi.spyOn(HTMLFormElement.prototype, 'reportValidity').mockReturnValue(false)
+   for (const [id, value] of [['corner-radius', '33'], ['corner-radius', '1.5'], ['sidebar-transparency', '101']]) {
+diff --git a/apps/desktop/tests/client-settings.spec.ts b/apps/desktop/tests/client-settings.spec.ts
+index 84c16f66..ab37e869 100644
+--- a/apps/desktop/tests/client-settings.spec.ts
++++ b/apps/desktop/tests/client-settings.spec.ts
+@@ -171,7 +171,7 @@ it('rejects foreign senders, child frames and file URLs with query, fragment or
+ it('saves the next-launch value without mutating the immutable run snapshot or returning unrelated settings', async () => {
+   const f = await fixture('en-US')
+   await manager!.open()
+-  const next = { ...DEFAULT_CLIENT_APPEARANCE, cornerRadius: 0, sidebarOpacity: 100 }
++  const next = { ...DEFAULT_CLIENT_APPEARANCE, cornerRadius: 0, sidebarOpacity: 100, titlebarStyle: 'windows' as const }
+   const result = await f.save(next)
+   expect(result).toMatchObject({ kind: 'ok', locale: 'en', value: { current: DEFAULT_CLIENT_APPEARANCE, saved: next, restartRequired: true } })
+   expect(await appearance.readClientAppearance(f.root, {})).toEqual(next)
+@@ -180,6 +180,17 @@ it('saves the next-launch value without mutating the immutable run snapshot or r
+   expect(f.restart).not.toHaveBeenCalled()
+ })
+ 
++it('marks a title-bar-only save as requiring restart while retaining the current run', async () => {
++  const f = await fixture()
++  await manager!.open()
++  const next = { ...DEFAULT_CLIENT_APPEARANCE, titlebarStyle: 'windows' as const }
++  expect(await f.save(next)).toMatchObject({ kind: 'ok', value: {
++    current: DEFAULT_CLIENT_APPEARANCE, saved: next, restartRequired: true,
++  } })
++  expect(await f.save({ ...next, titlebarStyle: 'native' })).toMatchObject({ kind: 'error', problem: { kind: 'fields', field: 'titlebarStyle' } })
++  expect(await appearance.readClientAppearance(f.root, {})).toEqual(next)
++})
++
+ it('returns structured parse/file failures without leaking arbitrary document contents', async () => {
+   const f = await fixture()
+   await manager!.open()
+diff --git a/apps/desktop/tests/glass-document.spec.ts b/apps/desktop/tests/glass-document.spec.ts
+index bc1bba4d..4cb6fd79 100644
+--- a/apps/desktop/tests/glass-document.spec.ts
++++ b/apps/desktop/tests/glass-document.spec.ts
+@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
+ import { glassDocument } from '../src/glass-document.ts'
+ 
+ /** The list-bottom fade, hidden for the same reason macOS hides it over vibrancy. */
+-const FADE_RULE = 'html[data-dsh-glass] [class*="sidebarCol"] [class$="_fade"] { display: none; }'
++const FADE_RULE = 'html[data-dsh-glass] [class*="sidebarCol"] [data-sidebar-scrollport] + span[aria-hidden="true"] { display: none; }'
+ 
+ describe('glassDocument', () => {
+   it('marks the document before its bundles run and closes its own style block', () => {
+diff --git a/apps/desktop/tests/glass-sidebar.client.spec.ts b/apps/desktop/tests/glass-sidebar.client.spec.ts
+new file mode 100644
+index 00000000..abaf28e5
+--- /dev/null
++++ b/apps/desktop/tests/glass-sidebar.client.spec.ts
+@@ -0,0 +1,39 @@
++// @vitest-environment jsdom
++import { afterEach, expect, it } from 'vitest'
++import { glassDocument } from '../src/glass-document.ts'
++
++afterEach(() => {
++  document.documentElement.removeAttribute('data-dsh-glass')
++  document.body.removeAttribute('data-ds-dark-theme')
++  document.head.innerHTML = ''
++  document.body.innerHTML = ''
++})
++
++function sidebarFixture() {
++  // Same scrollport / decorative sibling as SidebarRoot, independent of CSS Module hashes.
++  document.body.innerHTML = `<div class="v1_sidebarCol"><div><div data-sidebar-scrollport></div><span class="v2_scrollFade" aria-hidden="true"></span></div><footer>Footer</footer></div>
++    <main><div data-sidebar-scrollport></div><span class="v2_scrollFade" aria-hidden="true"></span></main>`
++  const style = document.createElement('style')
++  style.textContent = '.v2_scrollFade { display: block; height: 24px; }'
++  document.head.append(style)
++  const sidebarFade = document.querySelector('.v1_sidebarCol span')!
++  const contentFade = document.querySelector('main span')!
++  return { sidebarFade, contentFade }
++}
++
++for (const dark of [false, true]) it(`removes only the opaque sidebar scroll fade over ${dark ? 'dark' : 'light'} glass`, () => {
++  const { sidebarFade, contentFade } = sidebarFixture()
++  expect(getComputedStyle(sidebarFade).display).toBe('block')
++  // The former _fade suffix never matched the actual scrollFade class.
++  expect(sidebarFade.matches('[class$="_fade"]')).toBe(false)
++  document.documentElement.setAttribute('data-dsh-glass', '')
++  document.body.toggleAttribute('data-ds-dark-theme', dark)
++  const style = document.createElement('style')
++  style.textContent = glassDocument(80).split('<style>')[1]!.split('</style>')[0]!
++  document.head.append(style)
++  expect(getComputedStyle(sidebarFade).display).toBe('none')
++  expect(getComputedStyle(contentFade).display).toBe('block')
++  expect(getComputedStyle(document.querySelector('footer')!).display).not.toBe('none')
++  document.documentElement.removeAttribute('data-dsh-glass')
++  expect(getComputedStyle(sidebarFade).display).toBe('block')
++})
+diff --git a/apps/desktop/tests/main-startup.spec.ts b/apps/desktop/tests/main-startup.spec.ts
+index 8c3ed016..bd43aeb7 100644
+--- a/apps/desktop/tests/main-startup.spec.ts
++++ b/apps/desktop/tests/main-startup.spec.ts
+@@ -3,7 +3,7 @@ import type { DesktopHostProcess } from '../src/host-process.ts'
+ import type { AccountView } from '@deepseek-ai/dsh-deepseek-account/types'
+ import { WINDOWS_TITLEBAR_HEIGHT } from '../src/windows-layout.ts'
+ import { GLASS_ARGUMENT } from '../src/glass-mode.ts'
+-import { LINUX_CHROME_ARGUMENT } from '../src/linux-chrome-ipc.ts'
++import { LINUX_CHROME_ARGUMENT, LINUX_TITLEBAR_STYLE_ARGUMENT } from '../src/linux-chrome-ipc.ts'
+ import { WAYLAND_CSD_ARGUMENT } from '../src/wayland-csd.ts'
+ import { glassDocument } from '../src/glass-document.ts'
+ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+@@ -1290,7 +1290,7 @@ describe('desktop main startup', () => {
+     const call = vi.mocked(serveWebDocument).mock.lastCall
+     expect(call?.[0]).toBe(request)
+     expect(call?.[1]).toEqual(expect.stringContaining('dsh-web-frontend'))
+-    if (platform === 'linux') expect(call?.[2]).toBe(glassDocument(50))
++    if (platform === 'linux') expect(call?.[2]).toBe(glassDocument(80))
+     else expect(call).toHaveLength(2)
+   })
+ 
+@@ -1302,13 +1302,13 @@ describe('desktop main startup', () => {
+     const handler = harness.protocolHandle.mock.calls[0]![1]
+     const request = new Request('dsh-app://app/')
+     await handler(request)
+-    expect(vi.mocked(serveWebDocument).mock.lastCall?.[2]).toContain('97%, #7a9bf0) 50%')
+-    vi.stubEnv('DSH_DESKTOP_GLASS_TINT', '80')
++    expect(vi.mocked(serveWebDocument).mock.lastCall?.[2]).toContain('97%, #7a9bf0) 80%')
++    vi.stubEnv('DSH_DESKTOP_GLASS_TINT', '20')
+     await handler(request)
+     const injected = vi.mocked(serveWebDocument).mock.lastCall?.[2]
+-    expect(injected).toContain('97%, #7a9bf0) 50%')
++    expect(injected).toContain('97%, #7a9bf0) 80%')
+     // One knob drives both themes; the reduced-transparency fallback stays at least 90%.
+-    expect(injected).toContain('var(--dsw-specific-sidebar-fill) 50%, transparent')
++    expect(injected).toContain('var(--dsw-specific-sidebar-fill) 80%, transparent')
+     expect(injected).toContain('var(--dsw-specific-sidebar-fill) 90%, transparent')
+     // A missing closing tag would swallow the entry script and leave the window empty.
+     expect(injected?.startsWith('<script>')).toBe(true)
+@@ -1336,7 +1336,7 @@ describe('desktop main startup', () => {
+     const window = harness.windows[0]!
+     expect(window.options).toMatchObject({
+       frame: false, transparent: true,
+-      webPreferences: { additionalArguments: [WAYLAND_CSD_ARGUMENT, LINUX_CHROME_ARGUMENT, '--dsh-desktop-corner-radius=12'] },
++      webPreferences: { additionalArguments: [WAYLAND_CSD_ARGUMENT, LINUX_CHROME_ARGUMENT, '--dsh-desktop-corner-radius=12', `${LINUX_TITLEBAR_STYLE_ARGUMENT}macos`] },
+     })
+     expect(window.options).not.toHaveProperty('titleBarOverlay')
+     // X11 has no client frame to inset or round: nothing subscribes to the first move.
+@@ -1345,6 +1345,22 @@ describe('desktop main startup', () => {
+     expect(window.setAutoHideMenuBar).not.toHaveBeenCalled()
+   })
+ 
++  it('passes the saved Windows title-bar style to the isolated Linux controls', async () => {
++    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
++    const directory = join(harness.app.getPath('userData'), 'desktop')
++    mkdirSync(directory, { recursive: true })
++    writeFileSync(join(directory, 'appearance.json'), JSON.stringify({ schemaVersion: 2,
++      frameless: true, titlebarStyle: 'windows', cornerRadius: 12, systemShadow: true,
++      sidebarGlass: true, sidebarOpacity: 80, waylandBlur: true }))
++    await import('../src/main.ts')
++    await harness.preparing.promise
++    const window = harness.windows[0]!
++    expect(window.options).toMatchObject({ frame: false, transparent: true,
++      webPreferences: { additionalArguments: [GLASS_ARGUMENT, WAYLAND_CSD_ARGUMENT, LINUX_CHROME_ARGUMENT,
++        '--dsh-desktop-corner-radius=12', `${LINUX_TITLEBAR_STYLE_ARGUMENT}windows`] } })
++    expect(window.options).not.toHaveProperty('titleBarOverlay')
++  })
++
+   it('clips configurable corners without Chromium client-decoration insets on Wayland', async () => {
+     vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+     vi.stubEnv('DSH_DESKTOP_FRAMELESS', '1')
+@@ -1380,7 +1396,7 @@ describe('desktop main startup', () => {
+     await harness.preparing.promise
+     const window = harness.windows[0]!
+     expect(window.options).toMatchObject({ frame: false, transparent: true,
+-      webPreferences: { additionalArguments: [GLASS_ARGUMENT, WAYLAND_CSD_ARGUMENT, LINUX_CHROME_ARGUMENT, '--dsh-desktop-corner-radius=12'] } })
++      webPreferences: { additionalArguments: [GLASS_ARGUMENT, WAYLAND_CSD_ARGUMENT, LINUX_CHROME_ARGUMENT, '--dsh-desktop-corner-radius=12', `${LINUX_TITLEBAR_STYLE_ARGUMENT}macos`] } })
+     expect(console.error).not.toHaveBeenCalledWith(expect.stringContaining('takes precedence'))
+   })
+ 
+@@ -1392,7 +1408,7 @@ describe('desktop main startup', () => {
+     await readyForUpdate()
+     const handler = harness.protocolHandle.mock.calls[0]![1]
+     await handler(new Request('dsh-app://app/'))
+-    expect(vi.mocked(serveWebDocument).mock.lastCall?.[2]).toBe(glassDocument(50))
++    expect(vi.mocked(serveWebDocument).mock.lastCall?.[2]).toBe(glassDocument(80))
+   })
+ 
+   it('does not call the unsupported native overlay for isolated Linux traffic lights', async () => {
+diff --git a/apps/desktop/tests/preload-linux-chrome.client.spec.ts b/apps/desktop/tests/preload-linux-chrome.client.spec.ts
+new file mode 100644
+index 00000000..f6425124
+--- /dev/null
++++ b/apps/desktop/tests/preload-linux-chrome.client.spec.ts
+@@ -0,0 +1,141 @@
++// @vitest-environment jsdom
++import { afterEach, beforeEach, expect, it, vi } from 'vitest'
++import { installLinuxChrome } from '../src/preload-linux-chrome.ts'
++import { LINUX_CHROME_ARGUMENT, LINUX_CHROME_IPC, LINUX_TITLEBAR_STYLE_ARGUMENT } from '../src/linux-chrome-ipc.ts'
++
++const { send, on, removeListener } = vi.hoisted(() => ({ send: vi.fn(), on: vi.fn(), removeListener: vi.fn() }))
++vi.mock('electron', () => ({ ipcRenderer: { send, on, removeListener } }))
++const originalArgv = process.argv
++const originalMainFrame = Object.getOwnPropertyDescriptor(process, 'isMainFrame')
++let shadow: ShadowRoot | undefined
++
++beforeEach(() => {
++  process.argv = [...originalArgv, LINUX_CHROME_ARGUMENT]
++  Object.defineProperty(process, 'isMainFrame', { configurable: true, value: true })
++  vi.stubGlobal('location', { protocol: 'dsh-app:', hostname: 'app' })
++  vi.stubGlobal('ResizeObserver', class { observe = vi.fn(); unobserve = vi.fn(); disconnect = vi.fn() })
++  vi.spyOn(document, 'readyState', 'get').mockReturnValue('complete')
++  const attach = HTMLElement.prototype.attachShadow
++  vi.spyOn(HTMLElement.prototype, 'attachShadow').mockImplementation(function (this: HTMLElement, init) {
++    shadow = attach.call(this, init)
++    return shadow
++  })
++  document.documentElement.lang = 'en'
++  document.body.innerHTML = ''
++})
++
++afterEach(() => {
++  window.dispatchEvent(new Event('pagehide'))
++  process.argv = originalArgv
++  if (originalMainFrame === undefined) Reflect.deleteProperty(process, 'isMainFrame')
++  else Object.defineProperty(process, 'isMainFrame', originalMainFrame)
++  document.body.innerHTML = ''
++  document.documentElement.lang = 'en'
++  vi.restoreAllMocks(); vi.unstubAllGlobals()
++  send.mockClear(); on.mockClear(); removeListener.mockClear(); shadow = undefined
++})
++
++function state(value: unknown): void {
++  const handler = on.mock.calls.at(-1)?.[1] as (event: undefined, value: unknown) => void
++  handler(undefined, value)
++}
++function buttons(): HTMLButtonElement[] { return [...(shadow?.querySelectorAll('button') ?? [])] }
++function windows(): void { process.argv.push(`${LINUX_TITLEBAR_STYLE_ARGUMENT}windows`); installLinuxChrome() }
++
++it('preserves macOS traffic-light order, diameter and leading clearance by default', () => {
++  installLinuxChrome()
++  expect(document.documentElement.dataset.dshTitlebarStyle).toBe('macos')
++  expect(buttons().map(button => button.dataset.action)).toEqual(['close', 'minimize', 'maximize'])
++  expect(shadow?.querySelector('style')?.textContent).toContain('width:12px; height:12px; border-radius:50%')
++  expect(document.head.lastElementChild?.textContent).toContain('--dsh-frame-leading-clearance:160px')
++  expect(document.querySelector('dsh-kde-window-controls')?.shadowRoot).toBeNull()
++  expect(document.documentElement.hasAttribute('data-windows-titlebar')).toBe(false)
++})
++
++it('falls back to macOS for an invalid style and rejects unmarked or foreign frames', () => {
++  process.argv.push(`${LINUX_TITLEBAR_STYLE_ARGUMENT}invalid`)
++  installLinuxChrome()
++  expect(document.documentElement.dataset.dshTitlebarStyle).toBe('macos')
++  window.dispatchEvent(new Event('pagehide'))
++  process.argv = originalArgv
++  installLinuxChrome()
++  expect(document.querySelector('dsh-kde-window-controls')).toBeNull()
++  process.argv = [...originalArgv, LINUX_CHROME_ARGUMENT]
++  vi.stubGlobal('location', { protocol: 'https:', hostname: 'app' })
++  installLinuxChrome()
++  expect(document.querySelector('dsh-kde-window-controls')).toBeNull()
++})
++
++it('renders right-side Windows caption controls without enabling native Windows menus', () => {
++  windows()
++  expect(document.documentElement.dataset.dshTitlebarStyle).toBe('windows')
++  expect(buttons().map(button => button.dataset.action)).toEqual(['minimize', 'maximize', 'close'])
++  expect(document.documentElement.hasAttribute('data-windows-titlebar')).toBe(false)
++  expect(document.querySelector('dsh-kde-window-controls')?.shadowRoot).toBeNull()
++  const css = shadow?.querySelector('style')?.textContent
++  expect(css).toContain('right:0; width:138px; height:48px')
++  expect(css).toContain('width:46px; height:48px')
++  expect(css).toContain('button[data-action=close]:hover { background:#c42b1c; color:white; }')
++  expect(document.head.lastElementChild?.textContent).toContain('html[data-dsh-titlebar-style=windows] [data-shell-leading]')
++})
++
++it('updates restore glyph and bilingual labels and rejects malformed state', () => {
++  windows()
++  const maximize = buttons().find(button => button.dataset.action === 'maximize')!
++  state({ maximized: true, fullscreen: false, focused: false })
++  expect(maximize.getAttribute('aria-label')).toBe('Restore window')
++  expect(maximize.querySelector('span')?.dataset.glyph).toBe('restore')
++  expect(document.querySelector('dsh-kde-window-controls')?.hasAttribute('data-inactive')).toBe(true)
++  state({ maximized: false, fullscreen: 'wrong', focused: true })
++  expect(maximize.querySelector('span')?.dataset.glyph).toBe('restore')
++  document.documentElement.lang = 'zh-CN'
++  state({ maximized: false, fullscreen: false, focused: true })
++  expect(maximize.getAttribute('aria-label')).toBe('最大化窗口')
++  expect(maximize.querySelector('span')?.dataset.glyph).toBe('maximize')
++})
++
++it('retains trusted-click IPC and offers no callable page bridge', () => {
++  windows()
++  for (const button of buttons()) button.click()
++  expect(send).not.toHaveBeenCalled()
++  expect(on).toHaveBeenCalledWith(LINUX_CHROME_IPC.state, expect.any(Function))
++  expect(Object.keys(window).filter(key => /linuxChrome|windowAction|kdeGlass/u.test(key))).toEqual([])
++  for (const button of buttons()) {
++    expect(button.type).toBe('button')
++    expect(button.getAttribute('aria-label')).toBeTruthy()
++    expect(button.querySelector('span')?.getAttribute('aria-hidden')).toBe('true')
++  }
++})
++
++it('reserves only the top-right conversation or dock row and removes fullscreen clearance', () => {
++  document.body.innerHTML = '<header data-window-drag id="conversation"><div data-conversation-header-leading></div></header><div data-dockkit-strip id="lower"></div><div data-window-drag id="content"></div>'
++  const conversation = document.getElementById('conversation')!
++  const lower = document.getElementById('lower')!
++  const content = document.getElementById('content')!
++  const box = (top: number): DOMRect => ({ x: 0, y: top, width: innerWidth, height: 48, top, right: innerWidth, bottom: top + 48, left: 0, toJSON: () => ({}) })
++  vi.spyOn(conversation, 'getBoundingClientRect').mockReturnValue(box(0))
++  vi.spyOn(lower, 'getBoundingClientRect').mockReturnValue(box(200))
++  vi.spyOn(content, 'getBoundingClientRect').mockReturnValue(box(0))
++  windows()
++  expect(conversation.hasAttribute('data-dsh-caption-clearance')).toBe(true)
++  expect(lower.hasAttribute('data-dsh-caption-clearance')).toBe(false)
++  expect(content.hasAttribute('data-dsh-caption-clearance')).toBe(false)
++  state({ maximized: true, fullscreen: true, focused: true })
++  expect(document.querySelector<HTMLElement>('dsh-kde-window-controls')?.hidden).toBe(true)
++  expect(conversation.hasAttribute('data-dsh-caption-clearance')).toBe(false)
++  state({ maximized: false, fullscreen: false, focused: true })
++  expect(conversation.hasAttribute('data-dsh-caption-clearance')).toBe(true)
++})
++
++it('defers mount until DOM ready and disposes IPC, shadow host and owned styles on pagehide', () => {
++  vi.spyOn(document, 'readyState', 'get').mockReturnValue('loading')
++  windows()
++  expect(document.querySelector('dsh-kde-window-controls')).toBeNull()
++  document.dispatchEvent(new Event('DOMContentLoaded'))
++  expect(document.querySelector('dsh-kde-window-controls')).not.toBeNull()
++  window.dispatchEvent(new Event('pagehide'))
++  expect(removeListener).toHaveBeenCalledWith(LINUX_CHROME_IPC.state, expect.any(Function))
++  expect(document.querySelector('dsh-kde-window-controls')).toBeNull()
++  expect(document.documentElement.hasAttribute('data-dsh-titlebar-style')).toBe(false)
++  expect(document.head.textContent).not.toContain('data-dsh-caption-clearance')
++})
+diff --git a/apps/desktop/tests/welcome-startup.spec.ts b/apps/desktop/tests/welcome-startup.spec.ts
+index f976006a..77bd3d45 100644
+--- a/apps/desktop/tests/welcome-startup.spec.ts
++++ b/apps/desktop/tests/welcome-startup.spec.ts
+@@ -110,7 +110,7 @@ vi.mock('../src/paths.ts', () => ({ resolveDesktopPaths: () => ({ profile: '/pro
+ vi.mock('../src/settings.ts', () => ({ readDesktopSettings: () => ({ updates: { allowTestAuthPopupWindow: false } }) }))
+ vi.mock('../src/client-appearance.ts', async importOriginal => ({
+   ...await importOriginal<typeof import('../src/client-appearance.ts')>(),
+-  readClientAppearance: async () => ({ frameless: false, cornerRadius: 0, systemShadow: true, sidebarGlass: false, sidebarOpacity: 50, waylandBlur: false }),
++  readClientAppearance: async () => ({ frameless: false, titlebarStyle: 'macos', cornerRadius: 0, systemShadow: true, sidebarGlass: false, sidebarOpacity: 80, waylandBlur: false }),
+ }))
+ vi.mock('../src/wayland-bootstrap.ts', () => ({ launchWaylandProxy: async () => false,
+   prepareAppearanceRestart: async () => {}, waylandProxyPython: () => '/runtime/python3' }))

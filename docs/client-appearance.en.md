@@ -8,9 +8,11 @@ This fork’s `feature/kde-client-settings` branch provides independent window a
 
 ## Adjust and save
 
-Choose “Client settings…” from the tray to adjust corners, system shadows, sidebar glass, and transparency. “Advanced” includes the frameless main window and Wayland background blur. The settings window always retains its native frame and opaque background and requests the default system shadow, independently of main-window preferences; closing it closes only that window.
+Choose “Client settings…” from the tray to choose macOS title-bar controls (left-side traffic lights) or Windows controls (minimize, maximize, and close on the right), and adjust corners, system shadows, sidebar glass, and transparency. “Advanced” includes the frameless main window and Wayland background blur. The settings window always retains its native frame and opaque background and requests the default system shadow, independently of main-window preferences; closing it closes only that window.
 
-The defaults require no legacy environment variables: frameless enabled, 12 px corners, system shadow enabled, sidebar glass enabled, 50% fill opacity, and Wayland blur enabled. Frameless and glass modes can run together; they are not exclusive.
+The defaults require no legacy environment variables: macOS title-bar controls, frameless enabled, 12 px corners, system shadow enabled, sidebar glass enabled, 20% transparency (80% fill opacity), and Wayland blur enabled. Frameless and glass modes can run together; they are not exclusive.
+
+![macOS and Windows title-bar styles](titlebar-styles.png)
 
 “Restore defaults” fills the form without writing until you save. “Save” affects the next launch only and leaves the current window and Host tasks running. The page distinguishes current-run and next-launch values. A failed save keeps the form for correction or retry and is not reported as saved.
 
@@ -20,29 +22,36 @@ The defaults require no legacy environment variables: frameless enabled, 12 px c
 
 Configuration is stored separately at `app.getPath('userData')/desktop/appearance.json`, not in `$DSH_HOME`, and does not change Host configuration. Reading settings does not create a file. Saving atomically replaces the file with mode 0600 and preserves the previous file on write failure. Unknown fields, invalid JSON, invalid field types or ranges, and unsupported versions produce explicit errors without silent fallback or replacement.
 
-A complete version-1 file:
+A complete version-2 file:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "frameless": true,
+  "titlebarStyle": "macos",
   "cornerRadius": 12,
   "systemShadow": true,
   "sidebarGlass": true,
-  "sidebarOpacity": 50,
+  "sidebarOpacity": 80,
   "waylandBlur": true
 }
 ```
 
-`frameless`, `systemShadow`, `sidebarGlass`, and `waylandBlur` must be booleans. `cornerRadius` is an integer from 0 to 32; `sidebarOpacity` is an integer from 0 to 100. Strings and fractional numbers are rejected. UI transparency is `100 - sidebarOpacity`: 0% is fully opaque and 100% is fully transparent.
+`titlebarStyle` accepts only `macos` or `windows` and applies only to the frameless main window; native frames and the independent settings window remain compositor-controlled. `frameless`, `systemShadow`, `sidebarGlass`, and `waylandBlur` must be booleans. `cornerRadius` is an integer from 0 to 32; `sidebarOpacity` is an integer from 0 to 100. Strings and fractional numbers are rejected. UI transparency is `100 - sidebarOpacity`: 0% is fully opaque and 100% is fully transparent.
 
 Only when the file is absent do `DSH_DESKTOP_FRAMELESS` and `DSH_DESKTOP_GLASS` supply compatible initial values: unset variables retain the defaults; an explicit value enables the option only when it is `1`. A valid integer `DSH_DESKTOP_GLASS_TINT` from 0 to 100 supplies initial fill opacity; invalid values retain the default. **Once a saved file exists, it takes precedence over these variables.** Later saves or environment changes do not mutate the loaded current-run snapshot.
+
+Existing six-field version-1 files load with macOS controls while retaining every saved value, including transparency. Reading does not rewrite them; the next save writes version 2. Before returning to a version-1-only client, back up the file, set `schemaVersion` to `1`, and remove `titlebarStyle`, retaining the other six values.
 
 If the file is invalid, back it up before repairing fields or opening it with an app version that supports its schema. Direct file edits are not applied live and also require restarting. The file rejects API keys, tokens, and other credential fields.
 
 ## Compositor support and security
 
 Background blur, shadow v2, and transparent rounded corners have been verified on KDE Plasma 6.8.2 / Wayland, including the settings save-and-restart path. The Wayland relay requests blur and shadows through compositor protocols, while root-view clipping supplies real alpha at rounded corners. It uses the primary-runtime Python bundled under resources, not system Python.
+
+The glass sidebar no longer paints the opaque list-bottom fade, removing the white band above the footer without changing normal opaque sidebars or content. The comparison uses real captures of the same window over the same neutral backing to show the alpha difference.
+
+![Sidebar fade before and after the fix](sidebar-fade-comparison.png)
 
 A switch requests an effect; it does not guarantee that every desktop implements it. With native window decorations enabled, the compositor controls native corners. Compositors without the required protocols may provide transparency without blur or shadows. New effects on other compositors and X11 still need testing; successful startup of an older package does not establish appearance capabilities.
 

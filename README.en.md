@@ -41,9 +41,9 @@ Closing the main window **hides it to the background** by default (the Host and 
 
 ### Client appearance (fork source)
 
-Open “Client settings…” from the tray to adjust corners, system shadows, sidebar glass, and transparency in an independent native window. Advanced options control the frameless main window and Wayland background blur. The settings window always keeps its native frame and opaque background; closing it does not quit the app.
+Open “Client settings…” from the tray to choose macOS title-bar controls (left-side traffic lights) or Windows controls (minimize, maximize, and close on the right), and adjust corners, system shadows, sidebar glass, and transparency in an independent native window. Advanced options control the frameless main window and Wayland background blur. The settings window always keeps its native frame and opaque background; closing it does not quit the app.
 
-The default macOS-like appearance combines frameless windows and sidebar glass: 12 px corners, system shadows enabled, 50% sidebar fill opacity, and Wayland blur enabled. **No legacy environment variables are required.** The transparency slider runs from 0% fully opaque to 100% fully transparent, the inverse of the saved fill opacity.
+The default macOS-like appearance combines frameless windows and sidebar glass: 12 px corners, system shadows enabled, 20% sidebar transparency (80% fill opacity), and Wayland blur enabled. **No legacy environment variables are required.** The transparency slider runs from 0% fully opaque to 100% fully transparent, the inverse of the saved fill opacity.
 
 “Save” affects the next launch only, not the current run. “Save and restart…” saves first, then opens a confirmation with Cancel as the default and warns that running Host tasks will be interrupted. `DSH_DESKTOP_FRAMELESS`, `DSH_DESKTOP_GLASS`, and `DSH_DESKTOP_GLASS_TINT` supply compatible initial values only when no saved configuration exists; the saved file takes precedence afterward.
 

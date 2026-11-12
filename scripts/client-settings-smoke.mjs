@@ -43,6 +43,11 @@ smokeElectron.app.on('browser-window-created', (_event, window) => {
       const evaluate = script => settings.webContents.executeJavaScript(script)
       const snapshot = await evaluate('window.dshClientSettings.get()')
       assert(snapshot.kind === 'ok', 'real isolated settings IPC returns snapshot')
+      const expectedStyle = ['macos','windows','macos'][stage]
+      assert(snapshot.value.current.titlebarStyle === expectedStyle, `stage ${stage} saved title-bar style reloaded`)
+      assert((await page("document.documentElement.getAttribute('data-dsh-titlebar-style')")) === expectedStyle, `stage ${stage} real title-bar style applied`)
+      assert(snapshot.value.defaults.sidebarOpacity === 80, 'default transparency is twenty percent')
+      if (stage === 0) assert(snapshot.value.current.sidebarOpacity === 80, 'fresh startup uses twenty-percent transparency')
       const expectedRadius = [12,24,0][stage]
       assert(snapshot.value.current.cornerRadius === expectedRadius, `stage ${stage} saved radius reloaded`)
       const clipPath = await page('getComputedStyle(document.documentElement).clipPath')
@@ -51,8 +56,28 @@ smokeElectron.app.on('browser-window-created', (_event, window) => {
       const count = smokeElectron.BrowserWindow.getAllWindows().length
       item.click(); await smokeDelay(50)
       assert(smokeElectron.BrowserWindow.getAllWindows().length === count, 'tray settings window is singleton')
+      if (expectedGlass) {
+        const fade = await page(`(() => { const node=document.querySelector('[data-sidebar-scrollport] + span[aria-hidden="true"]'); return node && { display:getComputedStyle(node).display, oldSelector:node.matches('[class$="_fade"]'), className:node.className }; })()`)
+        assert(fade && fade.display === 'none' && !fade.oldSelector, `stage ${stage} real sidebar scrollFade is hidden, not matched by obsolete selector`)
+      }
+      if (stage === 1) {
+        const clickControl = async offset => {
+          const box=await page(`(() => { const r=document.querySelector('dsh-kde-window-controls').getBoundingClientRect(); return {x:r.left,y:r.top,width:r.width}; })()`)
+          assert(box.x > 0 && box.width === 138, 'Windows controls occupy the right edge')
+          const point={x:Math.round(box.x+offset),y:Math.round(box.y+24),button:'left',clickCount:1}
+          window.webContents.sendInputEvent({type:'mouseDown',...point}); window.webContents.sendInputEvent({type:'mouseUp',...point})
+        }
+        window.show(); window.focus(); await smokeDelay(100)
+        await clickControl(69); await until(() => window.isMaximized())
+        assert(await page("document.documentElement.hasAttribute('data-kde-glass-maximized')"), 'trusted Windows maximize click reaches native window')
+        await clickControl(69); await until(() => !window.isMaximized())
+        await clickControl(23); await until(() => window.isMinimized())
+        window.restore(); window.focus(); await until(() => !window.isMinimized())
+        await smokeDelay(200)
+        await smokeFs.writeFile(smokeJoin(smokeDir, 'titlebar-windows.png'), (await window.webContents.capturePage()).toPNG())
+      }
       if (stage === 2) {
-        await smokeFs.writeFile(smokeJoin(smokeDir, 'result.json'), JSON.stringify({ ok:true, stages:3, nativeWayland:true, sandbox:true, tray:true, restart:true, sidebarOpacity:true, shadowToggle:true, cornerRadius:true },null,2)+'\n')
+        await smokeFs.writeFile(smokeJoin(smokeDir, 'result.json'), JSON.stringify({ ok:true, stages:3, nativeWayland:true, sandbox:true, tray:true, restart:true, sidebarOpacity:true, shadowToggle:true, cornerRadius:true, titlebarStyle:true, sidebarFade:true, trustedWindowsControls:true },null,2)+'\n')
         settings.close()
         assert(!window.isDestroyed(), 'closing settings preserves primary window')
         console.info('CLIENT_SMOKE COMPLETE')
@@ -64,12 +89,21 @@ smokeElectron.app.on('browser-window-created', (_event, window) => {
         await smokeFs.writeFile(smokeJoin(smokeDir, 'settings-window.png'), (await settings.webContents.capturePage()).toPNG())
         window.setAlwaysOnTop(true); window.show(); window.focus()
         await smokeDelay(300)
+        const fadeBefore = await page(`(() => { const node=document.querySelector('[data-sidebar-scrollport] + span[aria-hidden="true"]'); node.style.display='block'; const r=node.getBoundingClientRect(), s=getComputedStyle(node); return {x:r.x,y:r.y,width:r.width,height:r.height,display:s.display,background:s.backgroundImage,className:node.className}; })()`)
+        assert(fadeBefore.display === 'block' && fadeBefore.height > 0 && fadeBefore.width > 0, 'before-fix reproduction paints the real opaque fade')
+        await smokeFs.writeFile(smokeJoin(smokeDir, 'sidebar-fade-metrics.json'), JSON.stringify(fadeBefore,null,2)+'\n')
+        await smokeDelay(150)
+        await smokeFs.writeFile(smokeJoin(smokeDir, 'sidebar-fade-before.png'), (await window.webContents.capturePage()).toPNG())
+        await page(`document.querySelector('[data-sidebar-scrollport] + span[aria-hidden="true"]').style.removeProperty('display')`)
+        await smokeDelay(150)
         await smokeFs.writeFile(smokeJoin(smokeDir, 'frameless-main.png'), (await window.webContents.capturePage()).toPNG())
+        await smokeFs.writeFile(smokeJoin(smokeDir, 'titlebar-macos.png'), (await window.webContents.capturePage()).toPNG())
         window.setAlwaysOnTop(false); settings.focus()
       }
       await evaluate(`(() => {
         const radius=document.getElementById('corner-radius'); radius.value='${stage === 0 ? 24 : 0}'; radius.dispatchEvent(new Event('input',{bubbles:true}));
         const trans=document.getElementById('sidebar-transparency'); trans.value='${stage === 0 ? 25 : 40}'; trans.dispatchEvent(new Event('input',{bubbles:true}));
+        const style=document.getElementById('titlebar-style'); style.value='${stage === 0 ? 'windows' : 'macos'}'; style.dispatchEvent(new Event('change',{bubbles:true}));
         document.getElementById('system-shadow').checked=${stage !== 0};
         document.getElementById('sidebar-glass').checked=${stage === 0};
         document.getElementById('save').click();
@@ -77,6 +111,7 @@ smokeElectron.app.on('browser-window-created', (_event, window) => {
       await until(async () => (await evaluate('window.dshClientSettings.get()')).value?.saved.cornerRadius === (stage === 0 ? 24 : 0))
       const saved = await evaluate('window.dshClientSettings.get()')
       assert(saved.value.saved.sidebarOpacity === (stage === 0 ? 75 : 60), 'transparency input saved with inverse opacity semantics')
+      assert(saved.value.saved.titlebarStyle === (stage === 0 ? 'windows' : 'macos') && saved.value.current.titlebarStyle === expectedStyle, 'title-bar changes are saved for next restart, not applied live')
       assert(saved.value.current.cornerRadius === expectedRadius && saved.value.restartRequired, 'save preserves current-run appearance and requests restart')
       await smokeFs.writeFile(stageFile, JSON.stringify({stage:stage+1}))
       const restarted = await evaluate('window.dshClientSettings.restart()').catch(() => undefined)

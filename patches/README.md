@@ -1,13 +1,13 @@
 # 补丁
 
-按文件名顺序应用（见 `scripts/apply-patches.sh`），当前上游基线由根 `PKGBUILD` 的 `_tag` / `_commit` 钉住（`dsh-v0.2.2-rc.2`）。`0020` 是在现有 `0001`–`0019` 有效补丁全部应用后的增量，不能单独打在干净上游；旧的同步与实测记录保留各自版本范围。
+按文件名顺序应用（见 `scripts/apply-patches.sh`），当前上游基线由根 `PKGBUILD` 的 `_tag` / `_commit` 钉住（`dsh-v0.2.2-rc.2`）。`0020` 是在现有 `0001`–`0019` 有效补丁全部应用后的增量，`0021` 再依赖 `0020`，不能单独打在干净上游；旧的同步与实测记录保留各自版本范围。
 
 组织约定：**一条改动只属于一个补丁**。每个补丁都是相对同一个基线的独立 diff，改动互不重复、
 按编号应用（顺序依赖见下）。补丁由 `git diff -- <files>` 从开发工作树生成；**一个文件可以被
 多个补丁触及**，此时必须按「基线 + 只有这一个补丁」的隔离树取 diff，否则会把另一个补丁的
 hunk 一起带进来。
 
-**`0017`、`0018` 与 `0020` 是增量依赖例外。** `0020` 必须基于 `0001`–`0019` 已应用的树生成与验证；重生时先建立这一前置基线，再取 `0020` 自己的增量，不要把整套前置补丁重复收进来。
+**`0017`、`0018`、`0020` 与 `0021` 是增量依赖例外。** `0021` 必须基于包含 `0020` 的完整前置树生成。 `0020` 必须基于 `0001`–`0019` 已应用的树生成与验证；重生时先建立这一前置基线，再取 `0020` 自己的增量，不要把整套前置补丁重复收进来。
 
 `0017` 的 5 个文件（`src/node-environment.ts`、`src/main.ts`、`tests/host-process.spec.ts`、
 `tests/node-environment.spec.ts`、`desktop-host/src/index.ts`）全部也属于 `0008`，而且它的 diff 上下文含
@@ -408,6 +408,14 @@ Wayland relay 使用随应用 resources 捆绑的 primary-runtime Python，不�
 
 Electron 渲染沙箱保持启用；设置页启用 `sandbox` / `contextIsolation`、禁用 Node integration，以严格 CSP 加载本地外部脚本和样式。Wayland relay 不通过关闭 Chromium 沙箱、关闭系统效果或改写用户全局合成器设置实现外观。用户操作、字段范围和错误恢复见[客户端外观](../docs/client-appearance.md)。
 
+## 标题栏样式与玻璃侧栏渐隐修复（0021）
+
+`0021` 依赖 `0001`–`0020` 已应用的树，不重生或重复 `0020`。默认侧栏透明度改为 20%（填充不透明度 80%），标题栏可在 macOS 左侧交通灯与 Windows 右侧最小化、最大化、关闭按钮之间选择；只改变无边框主窗口，仍使用同一组私有 IPC 和沙箱。Windows 顶部控件为真实窗口操作，最大化后显示还原图形，全屏时隐藏并撤销占位。
+
+外观文件保存为 `schemaVersion: 2`，新增 `titlebarStyle: 'macos' | 'windows'`。版本 1 仍严格按原六字段读取，补充 macOS 样式，不改变已保存透明度，不在读取时重写；下次保存才写版本 2。设置均在下一次启动生效，降级步骤见[客户端外观](../docs/client-appearance.md)。
+
+会话列表的底部白带来自 `SidebarRoot.scrollFade` 的不透明渐变；旧的 `[class$="_fade"]` 选择器没有匹配 `scrollFade`。注入样式改为只隐藏玻璃侧栏中 `[data-sidebar-scrollport]` 紧邻的装饰 `span[aria-hidden="true"]`，不依赖 CSS Module 哈希，不隐藏正文或普通不透明侧栏的渐隐。DOM 回归分别覆盖浅色、深色、退出玻璃模式及侧栏外同形元素。
+
 ## Arch 包与 deb/rpm 构建树的差异（无害）
 
 同一份上游代码、两套构建入口（`build.sh` 在 `upstream/` 里出 AppImage / deb / rpm，`makepkg` 在
@@ -605,7 +613,7 @@ arm64 目标折进现有补丁，不新增编号；文件名保留 `-x64` 的历
 
 - **发布设置读取被抽走。** `desktop-package-environment.mjs` 的 dotenv 读取整段移进新的 `desktop-file-settings.mjs`（`readDesktopPackageSettings`）。`0005` 从未改过那个函数本体，Linux 白名单都在常量与平台选择处，所以只重排了常量块，不搬家。
 
-- **侧栏重构。** `SidebarRoot.tsx` +105/−70、`SidebarRoot.module.css` +168/−33、新增 `scroll-handoff.ts`（插件入口收进「更多」、插件导航与会话列表共用滚动区）；`AppFrame.module.css` +10/−26、`PluginManagerPage.module.css` +82/−14。`0018` 的玻璃模式靠类名后缀命中哈希类名，逐条复核后三个选择器仍然成立：`[class*="sidebarCol"]`（在 `AppFrame.module.css`）、`[class$="newSession"]`、`[class$="_fade"]`。
+- **侧栏重构。** `SidebarRoot.tsx` +105/−70、`SidebarRoot.module.css` +168/−33、新增 `scroll-handoff.ts`（插件入口收进「更多」、插件导航与会话列表共用滚动区）；`AppFrame.module.css` +10/−26、`PluginManagerPage.module.css` +82/−14。`0018` 的玻璃模式靠类名后缀命中哈希类名，`[class*="sidebarCol"]`（在 `AppFrame.module.css`）与 `[class$="newSession"]` 继续匹配材质；列表渐隐后来由 `0021` 的真实 DOM 回归确认已改名为 `scrollFade`，旧 `[class$="_fade"]` 实际失配，当前使用滚动视口相邻装饰节点定位。
 
 - **两个补丁新增了「上游文件」**（不在原补丁的目标列表里）：
   - `0001` 加 `apps/desktop/scripts/retain-desktop-ci.ts`：上游的发布路由（`desktop-publish-route.ts`）只认 mac/win，而我们的 target 联合多了 linux，`route.target.includes(target)` 过不了类型检查；改成 `(route.target as readonly string[]).includes(target)`，路由表本身不动。
