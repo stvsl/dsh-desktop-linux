@@ -2,23 +2,14 @@
 
 [中文](README.md) | **English**
 
-Ports the **packaging pipeline** of the official
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop app
-(the Electron application in `apps/desktop`) to Linux, producing
-AppImage / deb / rpm / Arch packages.
+Ports the **packaging pipeline** of the official [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop app (the Electron application in `apps/desktop`) to Linux, producing AppImage / deb / rpm / Arch packages.
 
-Upstream does not support Linux today; this project fills that gap: it teaches
-the official packaging pipeline about `linux-x64` and `linux-arm64` and emits
-installable artifacts.
+Upstream does not support Linux today; this project adds `linux-x64` and `linux-arm64` targets to the official packaging pipeline.
 
-![The DeepSeek Harness desktop interface in normal mode (KDE)](docs/screenshot.png)
-*Normal mode (KDE Plasma)*
+This fork’s `feature/kde-client-settings` branch also provides independent client appearance settings and combines frameless windows, sidebar glass, rounded corners, and system shadows. **These features are source-only in this fork; no release package containing them has been published.** Downloads from the original project below do not imply these features are included.
 
-![The DeepSeek Harness desktop interface in frameless mode (KDE)](docs/screenshot-frameless.png)
-*Frameless mode (KDE Plasma, `DSH_DESKTOP_FRAMELESS=1`)*
-
-![The DeepSeek Harness desktop interface in glass mode (Hyprland)](docs/screenshot-glass.png)
-*Glass mode (Hyprland, `DSH_DESKTOP_GLASS=1 DSH_DESKTOP_GLASS_TINT=75`)*
+![Independent client appearance settings window](docs/client-settings.png)
+*Window and sidebar preferences are saved separately and apply after restart; see [Client appearance](docs/client-appearance.en.md)*
 
 ## What this project produces
 
@@ -30,7 +21,7 @@ What this project ships is **the official Electron application itself**:
 
 ## Install
 
-Download the AppImage, deb, rpm and Arch packages from [Releases](https://github.com/ffyfox/dsh-desktop-linux/releases).
+Download the original project’s published AppImage, deb, rpm and Arch packages from [its releases](https://github.com/ffyfox/dsh-desktop-linux/releases). Build this fork from source for the independent appearance settings and KDE enhancements; those older packages are not releases of this branch’s new features.
 
 | Distribution | Format | How |
 |---|---|---|
@@ -48,33 +39,15 @@ Closing the main window **hides it to the background** by default (the Host and 
 - **Restore the window**: "Open" in the tray menu, or launch the application again (a second launch only focuses the running instance).
 - **Quit completely**: "Quit" in the tray menu, `Application` → `Exit` in the menu bar, or `Ctrl+Q`.
 
-### Frameless mode
+### Client appearance (fork source)
 
-Start the application with this variable to drop window-manager decorations and keep only the window control buttons:
+Open “Client settings…” from the tray to adjust corners, system shadows, sidebar glass, and transparency in an independent native window. Advanced options control the frameless main window and Wayland background blur. The settings window always keeps its native frame and opaque background; closing it does not quit the app.
 
-```bash
-DSH_DESKTOP_FRAMELESS=1 deepseek-harness
-```
+The default macOS-like appearance combines frameless windows and sidebar glass: 12 px corners, system shadows enabled, 50% sidebar fill opacity, and Wayland blur enabled. **No legacy environment variables are required.** The transparency slider runs from 0% fully opaque to 100% fully transparent, the inverse of the saved fill opacity.
 
-The window then resembles the official Windows desktop app:
+“Save” affects the next launch only, not the current run. “Save and restart…” saves first, then opens a confirmation with Cancel as the default and warns that running Host tasks will be interrupted. `DSH_DESKTOP_FRAMELESS`, `DSH_DESKTOP_GLASS`, and `DSH_DESKTOP_GLASS_TINT` supply compatible initial values only when no saved configuration exists; the saved file takes precedence afterward.
 
-- The system title bar is removed, and the top in-page strip handles dragging and double-click maximize / restore; the style, count, and placement of the window control buttons follow the system GTK theme and decoration layout.
-- **Exclusive with glass mode**: when both variables are `1`, frameless wins and glass mode turns itself off.
-- **Left-side button limitation**: when the system places window buttons on the left, the in-page menus shift right to clear them, but the sidebar toggle at the top is not fully adapted yet.
-
-### Glass mode
-
-To get a frosted-glass sidebar (or unblurred translucency), start the application with an environment variable:
-
-```bash
-DSH_DESKTOP_GLASS=1 deepseek-harness
-```
-
-The window then resembles the official macOS desktop app:
-
-- The native menu bar auto-hides and appears on `Alt`.
-- Sidebar fill defaults to 40% in the light theme and 50% in the dark theme; override with `DSH_DESKTOP_GLASS_TINT=0..100` (raise it when background content makes text hard to read).
-- **Actual appearance depends on the compositor**: Hyprland, niri, and similar compositors support background blur; KDE and GNOME still draw a system title bar and only render translucency without blur — this mode generally looks best under **titlebar-less** tiling window managers.
+Background blur, shadows, and transparent rounded corners have been verified on KDE Plasma 6.8.2 / Wayland. Frameless and glass modes are no longer exclusive. Effects still depend on compositor support; native-frame corners are compositor-controlled, and blur or shadows are not guaranteed on other compositors. See [Client appearance](docs/client-appearance.en.md) for storage, ranges, and security limits.
 
 ## Building from source
 
@@ -82,7 +55,7 @@ Requirements: Node 24.9+ (**not your distro's own Node** — see below), **pnpm 
 Building the rpm additionally needs `rpmbuild` on the system.
 
 ```bash
-git clone https://github.com/ffyfox/dsh-desktop-linux
+git clone https://github.com/stvsl/dsh-desktop-linux --branch feature/kde-client-settings
 cd dsh-desktop-linux
 
 ./scripts/fetch-upstream.sh                   # fetch upstream sources (defaults to the tag pinned in PKGBUILD)
@@ -129,11 +102,7 @@ Official Electron shell (apps/desktop)
 
 Three design points:
 
-- **The Host runs on a real Node, not Electron's node mode.** Under Electron's
-  node mode `sharp` segfaults while decoding, so on Linux the Host uses the Node
-  bundled in primary-runtime. Consequently **Linux artifacts do not put the dsh
-  tree into an asar** (a real Node cannot read inside an archive), which is why
-  the installed directory is large.
+- **The Host runs on a real Node, not Electron's node mode.** Under Electron's node mode `sharp` segfaults while decoding, so on Linux the Host uses the Node bundled in primary-runtime. Consequently **Linux artifacts do not put the dsh tree into an asar** (a real Node cannot read inside an archive), which is why the installed directory is large.
 - **Exclusive profile.** The desktop app owns `$DSH_HOME/profiles/desktop` exclusively, while sessions, settings, and credentials still live at the root of `$DSH_HOME` shared with the CLI. To reuse your `web` configuration, quit the desktop app and copy or rename `$DSH_HOME/profiles/web` into place; sharing the directory via a symlink also works, but both sides will write to it and unknown issues may occur across larger version gaps.
 - **Sandboxing.** Where the kernel supports unprivileged user namespaces, the renderer uses the namespace sandbox; otherwise it falls back to a setuid `chrome-sandbox`. The AppImage probes this at launch, and the deb / rpm / Arch packages check it in their install scripts.
 
@@ -141,8 +110,7 @@ For patch numbering, responsibilities, and low-level details, see [patches/READM
 
 ## Validation status
 
-The table below is updated with testing and feedback — if you run into an adaptation
-problem, please open an [issue](https://github.com/ffyfox/dsh-desktop-linux/issues).
+The table retains the original Linux port’s validation scope; it does not establish this fork’s new appearance effects on every platform. Saving and restarting through this branch’s settings have been verified on KDE Plasma 6.8.2 / Wayland; enhanced effects on other compositors still need testing. Report branch-specific problems in [the fork’s issues](https://github.com/stvsl/dsh-desktop-linux/issues).
 
 | Environment | Status |
 |---|---|

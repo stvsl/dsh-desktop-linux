@@ -2,21 +2,14 @@
 
 **中文** | [English](README.en.md)
 
-把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 官方桌面端
-（`apps/desktop` 的 Electron 应用）的**打包流水线**移植到 Linux，产出
-AppImage / deb / rpm / Arch 包。
+把 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 官方桌面端（`apps/desktop` 的 Electron 应用）的**打包流水线**移植到 Linux，产出 AppImage / deb / rpm / Arch 包。
 
-上游目前不支持 Linux；本项目将其补齐：让官方打包流水线认得 `linux-x64` 与
-`linux-arm64` 并产出安装包。
+上游目前不支持 Linux；本项目将其补齐：让官方打包流水线认得 `linux-x64` 与 `linux-arm64` 并产出安装包。
 
-![DeepSeek Harness 桌面端普通模式界面（KDE）](docs/screenshot.png)
-*普通模式（KDE Plasma）*
+此 fork 的 `feature/kde-client-settings` 分支另提供独立客户端外观设置，以及可同时使用的无边框、侧栏玻璃、圆角和系统阴影。**这些新功能目前仅在 fork 源码中，尚未发布 release 安装包**；下方原项目下载不代表包含这些功能。
 
-![DeepSeek Harness 桌面端无边框模式界面（KDE）](docs/screenshot-frameless.png)
-*无边框模式（KDE Plasma，`DSH_DESKTOP_FRAMELESS=1`）*
-
-![DeepSeek Harness 桌面端玻璃模式界面（Hyprland）](docs/screenshot-glass.png)
-*玻璃模式（Hyprland，`DSH_DESKTOP_GLASS=1 DSH_DESKTOP_GLASS_TINT=75`）*
+![独立客户端外观设置窗口](docs/client-settings.png)
+*窗口与侧栏偏好独立保存；保存后重启生效，详见[客户端外观](docs/client-appearance.md)*
 
 ## 项目产物
 
@@ -28,7 +21,7 @@ AppImage / deb / rpm / Arch 包。
 
 ## 安装
 
-可从 [Releases](https://github.com/ffyfox/dsh-desktop-linux/releases) 下载 AppImage / deb / rpm / Arch 包。
+可从[原项目 Releases](https://github.com/ffyfox/dsh-desktop-linux/releases) 下载其已发布的 AppImage / deb / rpm / Arch 包。独立外观设置与 KDE 效果增强需使用下方 fork 源码构建，不要将原项目旧包视为此分支的新功能发布。
 
 | 发行版 | 格式 | 安装方式 |
 |---|---|---|
@@ -46,33 +39,15 @@ AppImage / deb / rpm / Arch 包。
 - **找回窗口**：托盘菜单「打开」，或再次启动应用（第二次启动只会聚焦已有实例）。
 - **完全退出**：托盘菜单「退出」、菜单栏「应用」→「退出」、或 `Ctrl+Q`。
 
-### 无边框模式
+### 客户端外观（fork 源码）
 
-想让窗口去掉系统装饰、只保留窗口控制按钮，加环境变量启动：
+从托盘的「客户端设置…」打开独立原生窗口，调整圆角、系统阴影、侧栏玻璃与透明度；高级选项可关闭主窗口无边框或 Wayland 背景模糊。此设置窗口始终保留系统边框和不透明背景，关闭它不会退出应用。
 
-```bash
-DSH_DESKTOP_FRAMELESS=1 deepseek-harness
-```
+默认使用类 macOS 外观：无边框与侧栏玻璃同时开启、圆角 12 px、系统阴影开启、侧栏填充不透明度 50%、Wayland 模糊开启，**不需要设置旧环境变量**。透明度滑条的 0% 为完全不透明、100% 为完全透明，与保存的填充不透明度相反。
 
-开启后窗口样式近似官方 Windows 桌面端：
+「保存」只影响下次启动，不改变当前运行；「保存并重启…」先保存，再弹出默认取消的确认框，明确提示运行中的主机任务会被中断。`DSH_DESKTOP_FRAMELESS`、`DSH_DESKTOP_GLASS` 与 `DSH_DESKTOP_GLASS_TINT` 仅在没有保存配置时提供兼容初始值，保存后文件优先。
 
-- 去掉系统标题栏，改由页面内顶部区域负责拖拽移动与双击最大化 / 还原；窗口控制按钮的样式、数量与位置跟随系统 GTK 主题及装饰布局。
-- **与玻璃模式互斥**：两个变量同时设为 `1` 时，无边框优先，玻璃模式自动关闭。
-- **左置按钮限制**：系统把窗口按钮放在左侧时，页面内菜单会自动右移避让，但侧栏顶部的切换钮暂未完整适配。
-
-### 玻璃模式
-
-想让侧栏呈现毛玻璃效果（或无模糊半透明效果），加环境变量启动：
-
-```bash
-DSH_DESKTOP_GLASS=1 deepseek-harness
-```
-
-开启后窗口样式近似官方 macOS 桌面端：
-
-- 原生菜单栏自动隐藏，按 `Alt` 唤出。
-- 侧栏浓度默认浅色 40%、深色 50%，可通过 `DSH_DESKTOP_GLASS_TINT=0..100` 调整，文字受背景干扰时可调高。
-- **实际观感取决于合成器**：Hyprland、niri 等支持背景模糊；KDE 与 GNOME 仍带系统标题栏且仅呈半透明、无模糊——此模式在**无系统标题栏**的平铺窗口管理器下可能观感更佳。
+KDE Plasma 6.8.2 / Wayland 已验证背景模糊、阴影及透明圆角，无边框与玻璃不再互斥。效果仍取决于合成器支持；打开系统边框时，圆角由合成器控制，其他合成器的模糊和阴影不作保证。配置位置、范围及安全限制见[客户端外观](docs/client-appearance.md)。
 
 ## 从源码构建
 
@@ -80,7 +55,7 @@ DSH_DESKTOP_GLASS=1 deepseek-harness
 打 rpm 还需要系统有 `rpmbuild`。
 
 ```bash
-git clone https://github.com/ffyfox/dsh-desktop-linux
+git clone https://github.com/stvsl/dsh-desktop-linux --branch feature/kde-client-settings
 cd dsh-desktop-linux
 
 ./scripts/fetch-upstream.sh                   # 拉上游源码（默认用 PKGBUILD 里钉的 tag）
@@ -127,9 +102,7 @@ cd pkgbuild && makepkg -si
 
 三个设计点：
 
-- **Host 跑在真 Node 上，不是 Electron 的 node 模式。** Electron 的 node 模式下 `sharp` 解码会段错误，
-  所以 Linux 的 Host 改走 primary-runtime 自带的 Node。连带地，**Linux 产物的 dsh 目录树不放进 asar**
-  （真 Node 读不了归档），这是安装目录体积偏大的原因。
+- **Host 跑在真 Node 上，不是 Electron 的 node 模式。** Electron 的 node 模式下 `sharp` 解码会段错误，所以 Linux 的 Host 改走 primary-runtime 自带的 Node。连带地，**Linux 产物的 dsh 目录树不放进 asar**（真 Node 读不了归档），这是安装目录体积偏大的原因。
 - **profile 独占。** 桌面端独占 `$DSH_HOME/profiles/desktop`，会话、设置与凭据仍在 `$DSH_HOME` 根下与 CLI 共享。若想复用 `web` 的配置，退出桌面端后把 `$DSH_HOME/profiles/web` 复制或改名过去即可；也可通过符号链接共用该目录，但两边会互相改写，版本跨度较大时可能出现未知问题。
 - **沙箱。** 内核支持非特权 user namespace 时走 namespace 沙箱；不支持才退回 setuid `chrome-sandbox`。AppImage 在启动时探测，deb / rpm / Arch 包在安装脚本里判断。
 
@@ -137,8 +110,7 @@ cd pkgbuild && makepkg -si
 
 ## 验证状态
 
-下表随测试和反馈更新——如果发现适配问题，欢迎在
-[Issues](https://github.com/ffyfox/dsh-desktop-linux/issues) 提出。
+下表保留原 Linux 移植的验证范围，不表示每个平台都验证了此 fork 的新外观效果。此分支的设置保存与重启闭环已在 KDE Plasma 6.8.2 / Wayland 验证；其他合成器的增强效果仍需实测。若发现此分支的适配问题，请在 [fork Issues](https://github.com/stvsl/dsh-desktop-linux/issues) 提出。
 
 | 环境 | 状态 |
 |---|---|

@@ -1,13 +1,13 @@
 # 补丁
 
-按文件名顺序应用（见 `scripts/apply-patches.sh`），全部相对上游 `f3803c96`（tag `dsh-v0.2.2-alpha.2`）。
+按文件名顺序应用（见 `scripts/apply-patches.sh`），当前上游基线由根 `PKGBUILD` 的 `_tag` / `_commit` 钉住（`dsh-v0.2.2-rc.2`）。`0020` 是在现有 `0001`–`0019` 有效补丁全部应用后的增量，不能单独打在干净上游；旧的同步与实测记录保留各自版本范围。
 
 组织约定：**一条改动只属于一个补丁**。每个补丁都是相对同一个基线的独立 diff，改动互不重复、
 按编号应用（顺序依赖见下）。补丁由 `git diff -- <files>` 从开发工作树生成；**一个文件可以被
 多个补丁触及**，此时必须按「基线 + 只有这一个补丁」的隔离树取 diff，否则会把另一个补丁的
 hunk 一起带进来。
 
-**`0017` 与 `0018` 是这条约定的两个已知例外。**
+**`0017`、`0018` 与 `0020` 是增量依赖例外。** `0020` 必须基于 `0001`–`0019` 已应用的树生成与验证；重生时先建立这一前置基线，再取 `0020` 自己的增量，不要把整套前置补丁重复收进来。
 
 `0017` 的 5 个文件（`src/node-environment.ts`、`src/main.ts`、`tests/host-process.spec.ts`、
 `tests/node-environment.spec.ts`、`desktop-host/src/index.ts`）全部也属于 `0008`，而且它的 diff 上下文含
@@ -274,6 +274,8 @@ Chromium 的 undo 栈）。测试上 `main-startup.spec.ts` 的平台菜单用�
 
 ## 让 Linux 也用上「玻璃」布局（0018）
 
+本节说明 `0018` 单独提供的布局及当时的实测；应用 `0020` 后，默认值、配置优先级及 KDE Wayland 效果以[客户端外观](../docs/client-appearance.md)为准，不再沿用「KDE 无模糊」的限制。
+
 | 补丁 | 覆盖文件 | 内容 |
 |---|---|---|
 | `0018-desktop-linux-glass-mode.patch` | `src/glass-mode.ts`（新增）、`src/glass-document.ts`（新增）、`src/main.ts`、`src/preload-windows.ts`、`src/web-document.ts`、`tests/{glass-mode,glass-document,main-startup,preload-windows.client,web-document}.spec.ts`、`packages/client/ui-layout/{src/client/AppFrame.tsx,src/client/AppFrame.module.css,tests/app-frame.client.spec.tsx}`、`packages/client/ui-sidebar/{src/client/SidebarRoot.tsx,src/client/SidebarRoot.module.css,tests/sidebar-root.client.spec.tsx}`、`packages/client/ui-plugin-manager/src/client/PluginManagerPage.module.css`、`packages/client/ui-schedule/src/client/TaskManagerPage.module.css` | `DSH_DESKTOP_GLASS=1` 时主窗口改成 `transparent: true` + `#00000000`，preload 通过 `additionalArguments` 拿到 `--dsh-desktop-glass` 后直接返回（不装 caption 标记，于是保持 Web 布局），主进程对 Linux 打开 `setAutoHideMenuBar(true)` 并关掉菜单栏（application menu 仍在，`Alt` 可唤出）。`dsh-app://app` 的文档多一条 `headInjection`：玻璃模式把 `glassDocument(tint)` 塞进 `<head>` —— 一条 `data-dsh-glass` 标记 + 一段 `<style>`：html/body/#root 与 grid frame 清成全透明，侧栏套用从 `packages/client/ui-layout/lib/client.js` 抄来的 macOS 材质（渐变 + `color-mix(… 40%/50%, transparent)`），内容区/右栏/底部保持 `--dsw-alias-bg-base` 实色，侧栏自己的面板与 New Session 按钮按 macOS 的做法重新上色；会话列表底部的渐隐遮罩（`[class$="_fade"]`）按 macOS 的做法隐藏 —— 它的渐变终点是不透明的侧栏填充色，压在透明栏上会变成一道实色带 |
@@ -338,6 +340,8 @@ Wayland）读数：展开 grid `280px …`、条 52px、切换钮 `(240,11)`（�
 
 ## 让 Linux 走无边框窗口（0019）
 
+本节说明 `0019` 的 Electron 控件覆盖层方案；应用 `0020` 后，主窗口可同时使用透明侧栏与独立窗口控制，无边框和玻璃不再互斥。以下互斥说明与读数仅对应 `0019`，不是 `0020` 的当前限制。
+
 | 补丁 | 覆盖文件 | 内容 |
 |---|---|---|
 | `0019-desktop-linux-frameless.patch` | `src/frameless-mode.ts`（新增）、`src/wayland-csd.ts`（新增）、`src/main.ts`、`src/preload-platform.ts`、`src/preload-menu.ts`、`src/welcome-window.ts`、`src/update-overlay.ts`、`tsconfig.client.json`、`tests/{frameless-mode,main-startup,welcome-window,preload-platform.client,wayland-csd,update-overlay}.spec.ts` | `DSH_DESKTOP_FRAMELESS=1` 时主窗口加 `titleBarStyle: 'hidden'` + `titleBarOverlay`（高度 40、初始色取 `chromeFallbackFill()`），原生按钮由 Electron 自绘（见下），标题区其余部分仍由 0016 的页内 caption 提供；`windowsAppearance` 里 `setTitleBarOverlay` 的门从「只 Windows」放宽到「Windows 或 Linux 无边框」，页面实测出来的侧栏色因此也能刷到原生条上。全屏事件与 preload 的 `data-fullscreen` 监听一并放行到 Linux 无边框（全屏时原生按钮隐藏，caption 要给内容让位）。欢迎窗走同一套覆盖层（高度 42）。`preload-menu.ts` 的菜单起点改成 `max(--dsh-windows-menu-start, env(titlebar-area-x))`，系统把按钮放左侧时菜单跟着安全区右移 |
@@ -393,6 +397,16 @@ KDE Plasma 6（kwin_wayland / Wayland，DPR 2，1536×960）上复核了同一�
 
 Hyprland 那张表里欢迎窗是 620×720、KDE 是 600×700 —— 同一个 `useContentSize`，两边的边框计算不同，都不影响布局。
 GNOME 的桌面双击最大化还没跑（留给实机复核与三发行版矩阵）；左置按钮布局仍未验证。
+
+## 独立客户端外观与 KDE Wayland 效果（0020）
+
+`0020` 在 `0001`–`0019` 已应用的树上追加客户端设置、原子持久化、透明无边框控制和 Wayland relay，不替代或重复前置补丁。此功能属于 fork 源码分支，尚未发布包含它的 release 安装包。
+
+默认同时开启无边框、侧栏玻璃、12 px 圆角、系统阴影、50% 侧栏填充不透明度与 Wayland 模糊；无保存文件时才读取三个旧外观环境变量，保存文件随后优先。独立设置窗口保留原生边框和不透明背景，仅暴露读取、保存和经原生确认的重启动作；保存不改变当前运行，重启确认默认取消并警告主机任务中断。JSON 仅包含 `schemaVersion: 1` 与六个外观字段，存于 Electron userData 下的 `desktop/appearance.json`，不读写 API 凭据或 `$DSH_HOME`。
+
+Wayland relay 使用随应用 resources 捆绑的 primary-runtime Python，不依赖系统 Python。KDE Plasma 6.8.2 / Wayland 已验证背景模糊协议、shadow v2 和根视图透明裁剪，圆角外侧是真实 alpha 而非绘制背景色遮挡；系统边框模式的圆角仍由合成器控制。缺少相应协议的合成器不保证模糊或阴影，不能把配置开关当作效果已生效的证据。
+
+Electron 渲染沙箱保持启用；设置页启用 `sandbox` / `contextIsolation`、禁用 Node integration，以严格 CSP 加载本地外部脚本和样式。Wayland relay 不通过关闭 Chromium 沙箱、关闭系统效果或改写用户全局合成器设置实现外观。用户操作、字段范围和错误恢复见[客户端外观](../docs/client-appearance.md)。
 
 ## Arch 包与 deb/rpm 构建树的差异（无害）
 

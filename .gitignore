@@ -18,6 +18,9 @@ node_modules/
 
 # 测试用 DSH_HOME
 /dsh-home/
+/.test-home/
+__pycache__/
+*.pyc
 
 # PKGBUILD 摊平目录（由 scripts/pkgbuild-dir.sh 生成）
 /pkgbuild/

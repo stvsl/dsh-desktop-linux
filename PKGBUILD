@@ -17,7 +17,7 @@
 
 pkgname=dsh-desktop-linux
 pkgver=0.2.2rc2
-pkgrel=1
+pkgrel=2
 _tag='dsh-v0.2.2-rc.2'
 _commit='ddac96760b6edf8fa0fe17cbdcf0b512f4c12b2c'
 # GitHub 源码包的顶层目录名 = <repo>-<tag>，tag 自带的 "v" 不剥（实测 dsh-v0.2.1-alpha.2）
@@ -29,7 +29,7 @@ pkgdesc='Official DeepSeek Harness desktop application (Electron shell around a 
 # arch job：x86_64 跑在 ubuntu-latest + archlinux 镜像，aarch64 跑在 ubuntu-24.04-arm +
 # Arch Linux ARM 镜像。makepkg 侧按 $CARCH 选目标，见 build() 与 package()。
 arch=('x86_64' 'aarch64')
-url='https://github.com/ffyfox/dsh-desktop-linux'
+url='https://github.com/stvsl/dsh-desktop-linux'
 license=('MIT')
 # 上游 deb/rpm 的 control 里声明的运行时依赖，换成 Arch 的包名，再加上 ldd 显示而
 # Debian 那边由传递依赖带来的 alsa-lib / dbus。剩下的（cairo、pango、libx11、libcups、
@@ -103,6 +103,7 @@ source=("$pkgname-$pkgver.tar.gz::https://github.com/deepseek-ai/deepseek-harnes
         '0017-desktop-host-resources-path.patch'
         '0018-desktop-linux-glass-mode.patch'
         '0019-desktop-linux-frameless.patch'
+        '0020-desktop-client-appearance.patch'
         # 补丁系列是文本 diff，装不下托盘 PNG —— GNU patch（makepkg 与 PKGBUILD 都用它）
         # 不支持 git 的二进制补丁。所以这张图作为普通本地 source 平铺过来，由 prepare() 放进源码树。
         'tray-linux.png')
@@ -124,6 +125,7 @@ sha256sums=('d376fe64ec4b7c9b5837fb1155ed3a48e7e0e5f5b0aae0b91d9fb836daa8c20e'
             '25dc6ec16f56385f5598378287437f0014ed5ed4fa8884358da11cd15e31a6c4'
             '02b348ecf61e164ac0ed4af10fe1956005bfa5891da646658adafe61dd2339c0'
             'aa0753f9100012ec21bd6030dd8933c5383e5717f243076b9fb7768b896627f3'
+            '922ad3c1ae4e61b89133aa2788e3c92d3330238c9d315702b83a78c4acf97353'
             'd1153ab7bb1c61ca7f6568b4525f6c3f3c7bf9a9e29af1697f3c02da7dee5322')
 
 prepare() {
