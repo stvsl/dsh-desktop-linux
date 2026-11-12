@@ -8,11 +8,15 @@ This fork’s `feature/kde-client-settings` branch provides independent window a
 
 ## Adjust and save
 
-Choose “Client settings…” from the tray to choose macOS title-bar controls (left-side traffic lights) or Windows controls (minimize, maximize, and close on the right), and adjust corners, system shadows, sidebar glass, and transparency. “Advanced” includes the frameless main window and Wayland background blur. The settings window always retains its native frame and opaque background and requests the default system shadow, independently of main-window preferences; closing it closes only that window.
+Choose “Client settings…” from the tray to choose macOS (left-side traffic lights), Windows (the upstream separate 40 px caption, sidebar toggle, and Application/Edit menus), or Blended (right-side window controls, with the logo and sidebar toggle on one row), and adjust corners, system shadows, sidebar glass, and transparency. “Advanced” includes the frameless main window and Wayland background blur. The settings window always retains its native frame and opaque background and requests the default system shadow, independently of main-window preferences; closing it closes only that window.
 
 The defaults require no legacy environment variables: macOS title-bar controls, frameless enabled, 12 px corners, system shadow enabled, sidebar glass enabled, 20% transparency (80% fill opacity), and Wayland blur enabled. Frameless and glass modes can run together; they are not exclusive.
 
-![macOS and Windows title-bar styles](titlebar-styles.png)
+![macOS, Windows, and Blended title-bar styles](titlebar-styles.png)
+
+Windows reuses the upstream caption, menus, and content layout instead of only moving window buttons to the right. A real dark-theme capture:
+
+![Upstream-style Windows caption in dark theme](windows-upstream-style.png)
 
 “Restore defaults” fills the form without writing until you save. “Save” affects the next launch only and leaves the current window and Host tasks running. The page distinguishes current-run and next-launch values. A failed save keeps the form for correction or retry and is not reported as saved.
 
@@ -22,11 +26,11 @@ The defaults require no legacy environment variables: macOS title-bar controls, 
 
 Configuration is stored separately at `app.getPath('userData')/desktop/appearance.json`, not in `$DSH_HOME`, and does not change Host configuration. Reading settings does not create a file. Saving atomically replaces the file with mode 0600 and preserves the previous file on write failure. Unknown fields, invalid JSON, invalid field types or ranges, and unsupported versions produce explicit errors without silent fallback or replacement.
 
-A complete version-2 file:
+A complete version-3 file:
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "frameless": true,
   "titlebarStyle": "macos",
   "cornerRadius": 12,
@@ -37,11 +41,11 @@ A complete version-2 file:
 }
 ```
 
-`titlebarStyle` accepts only `macos` or `windows` and applies only to the frameless main window; native frames and the independent settings window remain compositor-controlled. `frameless`, `systemShadow`, `sidebarGlass`, and `waylandBlur` must be booleans. `cornerRadius` is an integer from 0 to 32; `sidebarOpacity` is an integer from 0 to 100. Strings and fractional numbers are rejected. UI transparency is `100 - sidebarOpacity`: 0% is fully opaque and 100% is fully transparent.
+`titlebarStyle` accepts only `macos`, `windows`, or `fusion` (Blended) and applies only to the frameless main window; native frames and the independent settings window remain compositor-controlled. `frameless`, `systemShadow`, `sidebarGlass`, and `waylandBlur` must be booleans. `cornerRadius` is an integer from 0 to 32; `sidebarOpacity` is an integer from 0 to 100. Strings and fractional numbers are rejected. UI transparency is `100 - sidebarOpacity`: 0% is fully opaque and 100% is fully transparent.
 
 Only when the file is absent do `DSH_DESKTOP_FRAMELESS` and `DSH_DESKTOP_GLASS` supply compatible initial values: unset variables retain the defaults; an explicit value enables the option only when it is `1`. A valid integer `DSH_DESKTOP_GLASS_TINT` from 0 to 100 supplies initial fill opacity; invalid values retain the default. **Once a saved file exists, it takes precedence over these variables.** Later saves or environment changes do not mutate the loaded current-run snapshot.
 
-Existing six-field version-1 files load with macOS controls while retaining every saved value, including transparency. Reading does not rewrite them; the next save writes version 2. Before returning to a version-1-only client, back up the file, set `schemaVersion` to `1`, and remove `titlebarStyle`, retaining the other six values.
+Version-1 six-field files load with macOS controls. Version-2 `windows` explicitly migrates to `fusion`, preserving the previous menuless Blended appearance; `macos` remains unchanged. Every other saved value, including transparency, is retained. Reading does not rewrite the file; the next save writes version 3. To return to version 2, back up the file, map `fusion` back to `windows`, and set `schemaVersion` to `2`; the new separate Windows caption is unavailable there. For a version-1-only client, also remove `titlebarStyle`, retaining the other six values.
 
 If the file is invalid, back it up before repairing fields or opening it with an app version that supports its schema. Direct file edits are not applied live and also require restarting. The file rejects API keys, tokens, and other credential fields.
 

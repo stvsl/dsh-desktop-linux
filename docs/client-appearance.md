@@ -8,11 +8,15 @@
 
 ## 调整与保存
 
-从托盘选择「客户端设置…」，选择 macOS（左侧交通灯）或 Windows（右侧最小化、最大化、关闭）标题栏样式，调整圆角、系统阴影、侧栏玻璃及透明度；「高级选项」包含主窗口无边框和 Wayland 背景模糊。设置窗口始终保留系统边框和不透明背景，并请求默认系统阴影，不受主窗口外观设置影响，关闭它只关闭该窗口。
+从托盘选择「客户端设置…」，选择 macOS（左侧交通灯）、Windows（上游独立 40 px 标题栏、折叠按钮及「应用 / 编辑」菜单）或融和（右侧窗口按钮，Logo 与折叠按钮同排）标题栏样式，调整圆角、系统阴影、侧栏玻璃及透明度；「高级选项」包含主窗口无边框和 Wayland 背景模糊。设置窗口始终保留系统边框和不透明背景，并请求默认系统阴影，不受主窗口外观设置影响，关闭它只关闭该窗口。
 
 默认配置不需要旧环境变量：macOS 标题栏、无边框开启、圆角 12 px、系统阴影开启、侧栏玻璃开启、透明度 20%（填充不透明度 80%）、Wayland 模糊开启。无边框与玻璃可以同时使用，不再互斥。
 
-![macOS 与 Windows 标题栏样式](titlebar-styles.png)
+![macOS、Windows 与融和标题栏样式](titlebar-styles.png)
+
+Windows 样式复用上游标题栏、菜单和内容区布局，而非仅将窗口按钮挪到右边。深色实测效果：
+
+![上游 Windows 样式深色实测](windows-upstream-style.png)
 
 「恢复默认」只填入默认值，需再次保存才写入文件。「保存」只影响下次启动，当前窗口和主机任务保持运行；页面区分当前运行与下次启动的值。保存失败时，表单保留供修正或重试，不显示为已保存。
 
@@ -22,11 +26,11 @@
 
 配置单独存于 `app.getPath('userData')/desktop/appearance.json`，不在 `$DSH_HOME`，也不修改主机配置。读取设置不创建文件；保存使用 mode 0600 的原子替换，写入失败保留原文件。未知字段、无效 JSON、字段类型或范围错误、未知版本均明确报错，不静默回退或覆盖原文件。
 
-完整的版本 2 文件示例：
+完整的版本 3 文件示例：
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "frameless": true,
   "titlebarStyle": "macos",
   "cornerRadius": 12,
@@ -37,11 +41,11 @@
 }
 ```
 
-`titlebarStyle` 只接受 `macos` 或 `windows`，仅在主窗口无边框时生效，系统边框和独立设置窗口仍由合成器绘制。`frameless`、`systemShadow`、`sidebarGlass`、`waylandBlur` 必须为布尔值；`cornerRadius` 为 0–32 的整数，`sidebarOpacity` 为 0–100 的整数，不接受字符串或小数。UI 透明度为 `100 - sidebarOpacity`：0% 完全不透明，100% 完全透明。
+`titlebarStyle` 只接受 `macos`、`windows` 或 `fusion`（融和），仅在主窗口无边框时生效，系统边框和独立设置窗口仍由合成器绘制。`frameless`、`systemShadow`、`sidebarGlass`、`waylandBlur` 必须为布尔值；`cornerRadius` 为 0–32 的整数，`sidebarOpacity` 为 0–100 的整数，不接受字符串或小数。UI 透明度为 `100 - sidebarOpacity`：0% 完全不透明，100% 完全透明。
 
 仅当配置文件不存在时，`DSH_DESKTOP_FRAMELESS` 与 `DSH_DESKTOP_GLASS` 提供兼容初始值：未设置沿用默认，显式值只有 `1` 表示开启。`DSH_DESKTOP_GLASS_TINT` 的有效整数 0–100 作为初始填充不透明度，非法值沿用默认。**保存文件存在后，其值优先于这些环境变量**；加载的当前运行快照不会被后续保存或环境变化修改。
 
-原版本 1 的六字段配置可直接读取：补充 macOS 样式，保留所有已保存的值（包括透明度），读取时不自动写回；下次保存升级为版本 2。退回只支持版本 1 的旧客户端前，先备份文件，再将 `schemaVersion` 改回 `1` 并移除 `titlebarStyle`，其余六个值保持不变。
+版本 1 的六字段文件读取时补充 macOS；版本 2 的 `windows` 明确迁移为 `fusion`，保留此前无菜单的融和外观，`macos` 保持不变。所有旧偏好（包括透明度）保留，读取不自动写回，下次保存才写版本 3。回滚到版本 2 时先备份，将 `fusion` 改回 `windows`，再将 `schemaVersion` 改回 `2`；新 Windows 独立标题栏在旧版不可用。回滚到仅支持版本 1 的客户端时，还须移除 `titlebarStyle`，其余六个值不变。
 
 文件无效时，请先备份，再修复字段或使用兼容该版本的应用打开。不要直接改动文件期待热生效；外部手动修改也需要重新启动。该文件不接受 API Key、Token 或其他凭据字段。
 
